@@ -98,8 +98,12 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMe
 }
 
 // MonitorChan monitors the transfer channel
-func MonitorChan(transferChan chan sarama.ProducerMessage) {
+func MonitorChan(transferChan chan sarama.ProducerMessage, signals chan os.Signal) {
 	for {
+		if len(signals) > 0 {
+			log.Println("Consumer - Interrupt is detected - exiting")
+			return
+		}
 		log.Println("Transfer channel length: ", len(transferChan))
 		time.Sleep(10 * time.Second)
 	}

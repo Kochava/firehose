@@ -68,7 +68,7 @@ func main() {
 		log.Println("Started producer")
 	}
 
-	go MonitorChan(transferChan)
+	go MonitorChan(transferChan, signals)
 
 	wg.Wait()
 }

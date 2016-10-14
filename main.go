@@ -41,11 +41,11 @@ func main() {
 		log.Println("Unable to create producer", err)
 	}
 
-	defer CloseConsumer(consumer)
-	defer CloseProducer(producer)
+	defer CloseConsumer(&consumer)
+	defer CloseProducer(&producer)
 
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 
 	var wg sync.WaitGroup
 

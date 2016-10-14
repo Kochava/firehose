@@ -101,7 +101,7 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMe
 func MonitorChan(transferChan chan sarama.ProducerMessage, signals chan os.Signal) {
 	for {
 		if len(signals) > 0 {
-			log.Println("Consumer - Interrupt is detected - exiting")
+			log.Println("Monitor - Interrupt is detected - exiting")
 			return
 		}
 		log.Println("Transfer channel length: ", len(transferChan))
@@ -123,18 +123,18 @@ func TestProducer(partition int, consumer <-chan int, wg *sync.WaitGroup) {
 }
 
 // CloseProducer Closes the producer
-func CloseProducer(producer sarama.SyncProducer) {
+func CloseProducer(producer *sarama.SyncProducer) {
 	log.Println("Trying to close Producer")
-	if err := producer.Close(); err != nil {
+	if err := (*producer).Close(); err != nil {
 		// Should not reach here
 		panic(err)
 	}
 }
 
 // CloseConsumer closes the consumer
-func CloseConsumer(consumer sarama.Consumer) {
+func CloseConsumer(consumer *sarama.Consumer) {
 	log.Println("Trying to close consumer")
-	if err := consumer.Close(); err != nil {
+	if err := (*consumer).Close(); err != nil {
 		// Should not reach here
 		panic(err)
 	}

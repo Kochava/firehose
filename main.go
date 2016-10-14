@@ -51,7 +51,7 @@ func main() {
 	topic := "events"
 
 	for partition := 0; partition < 24; partition++ {
-		transferChan := make(chan *sarama.ProducerMessage, 100000)
+		transferChan := make(chan sarama.ProducerMessage, 10000000)
 
 		partitionConsumer, err := consumer.ConsumePartition(topic, int32(partition), sarama.OffsetNewest)
 		if err != nil {

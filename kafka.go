@@ -51,7 +51,7 @@ func GetKafkaProducer(brokers []string, file *os.File) (sarama.SyncProducer, err
 }
 
 // PullFromTopic pulls messages from the topic partition
-func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- *sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
+func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
@@ -64,7 +64,7 @@ func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- *sarama.Pr
 			log.Println(err)
 			return
 		case consumerMsg := <-consumer.Messages():
-			producerMsg := &sarama.ProducerMessage{
+			producerMsg := sarama.ProducerMessage{
 				Topic:     consumerMsg.Topic,
 				Partition: consumerMsg.Partition,
 				Key:       sarama.StringEncoder(consumerMsg.Key),
@@ -76,7 +76,7 @@ func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- *sarama.Pr
 }
 
 // PushToTopic pushes messages to topic
-func PushToTopic(producer sarama.SyncProducer, consumer <-chan *sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
+func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
@@ -86,7 +86,7 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan *sarama.ProducerM
 		}
 		select {
 		case consumerMsg := <-consumer:
-			_, _, err := producer.SendMessage(consumerMsg)
+			_, _, err := producer.SendMessage(&consumerMsg)
 			if err != nil {
 				log.Fatalln("Failed to produce message to kafka cluster.")
 				return

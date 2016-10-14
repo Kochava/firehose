@@ -50,8 +50,8 @@ func main() {
 
 	topic := "events"
 
+	transferChan := make(chan sarama.ProducerMessage, 100000)
 	for partition := 0; partition < 24; partition++ {
-		transferChan := make(chan sarama.ProducerMessage, 10000000)
 
 		partitionConsumer, err := consumer.ConsumePartition(topic, int32(partition), sarama.OffsetNewest)
 		if err != nil {
@@ -66,6 +66,10 @@ func main() {
 		go PushToTopic(producer, transferChan, signals, &wg)
 		log.Println("Started producer for partition ", partition)
 	}
+
+	go func() {
+		log.Println(len(transferChan))
+	}()
 
 	wg.Wait()
 }

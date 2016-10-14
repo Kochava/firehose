@@ -12,7 +12,7 @@ import (
 func main() {
 
 	consumerBrokers := []string{"kafka-broker-01.ana.kochava.com:9092", "kafka-broker-02.ana.kochava.com:9092", "kafka-broker-03.ana.kochava.com:9092"}
-	producerBrokers := []string{"104.196.140.55:9092", "104.196.0.83:9092", "104.196.35.215:9092"}
+	producerBrokers := []string{"analytics-kafka-v000-9lzw:9092", "analytics-kafka-v000-u40u:9092", "analytics-kafka-v000-wrdq:9092"}
 
 	logFile, err := os.OpenFile("/var/log/firehose/firehose.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {

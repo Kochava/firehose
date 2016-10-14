@@ -58,18 +58,17 @@ func main() {
 			panic(err)
 		}
 
-		wg.Add(2)
+		wg.Add(1)
 
 		go PullFromTopic(partitionConsumer, transferChan, signals, &wg)
 		log.Println("Started consumer for partition ", partition)
 
+		wg.Add(2)
 		go PushToTopic(producer, transferChan, signals, &wg)
-		log.Println("Started producer for partition ", partition)
+		log.Println("Started producer")
 	}
 
-	go func() {
-		log.Println(len(transferChan))
-	}()
+	go MonitorChan(transferChan)
 
 	wg.Wait()
 }

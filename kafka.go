@@ -97,6 +97,14 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMe
 	}
 }
 
+// MonitorChan monitors the transfer channel
+func MonitorChan(transferChan chan sarama.ProducerMessage) {
+	for {
+		log.Println("Transfer channel length: ", len(transferChan))
+		time.Sleep(10 * time.Second)
+	}
+}
+
 // TestConsumer testing
 func TestConsumer(partition int, producer chan<- int, wg *sync.WaitGroup) {
 	defer wg.Done()

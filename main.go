@@ -65,6 +65,7 @@ func main() {
 
 		wg.Add(2)
 		go PushToTopic(producer, transferChan, signals, &wg)
+		log.Println("Started producer")
 		go PushToTopic(producer, transferChan, signals, &wg)
 		log.Println("Started producer")
 	}

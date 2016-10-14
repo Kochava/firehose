@@ -52,7 +52,7 @@ func GetKafkaProducer(brokers []string, file *os.File) (sarama.SyncProducer, err
 
 // PullFromTopic pulls messages from the topic partition
 func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
-	defer wg.Done()
+	defer (*wg).Done()
 
 	for {
 		if len(signals) > 0 {
@@ -77,7 +77,7 @@ func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- sarama.Pro
 
 // PushToTopic pushes messages to topic
 func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
-	defer wg.Done()
+	defer (*wg).Done()
 
 	for {
 		if len(signals) > 0 {
@@ -98,7 +98,8 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMe
 }
 
 // MonitorChan monitors the transfer channel
-func MonitorChan(transferChan chan sarama.ProducerMessage, signals chan os.Signal) {
+func MonitorChan(transferChan chan sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
+	defer (*wg).Done()
 	for {
 		if len(signals) > 0 {
 			log.Println("Monitor - Interrupt is detected - exiting")

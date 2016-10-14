@@ -71,7 +71,9 @@ func main() {
 		log.Println("Started producer")
 	}
 
-	go MonitorChan(transferChan, signals)
+	go MonitorChan(transferChan, signals, &wg)
 
 	wg.Wait()
+
+	log.Println("All threads done, closing clients and ending")
 }

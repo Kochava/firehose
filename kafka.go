@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -12,7 +11,7 @@ import (
 )
 
 // GetKafkaConsumer returns a new consumer
-func GetKafkaConsumer(brokers []string) (sarama.Consumer, error) {
+func GetKafkaConsumer(brokers []string, file *os.File) (sarama.Consumer, error) {
 	config := sarama.NewConfig()
 	config.Consumer.Return.Errors = true
 
@@ -22,11 +21,6 @@ func GetKafkaConsumer(brokers []string) (sarama.Consumer, error) {
 
 	config.MetricRegistry = consumerMetricRegistry
 
-	file, err := os.OpenFile("consumer.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalln("Failed to open log file:", err)
-	}
-
 	go metrics.Log(consumerMetricRegistry, 30*time.Second, log.New(file, "consumer: ", log.Lmicroseconds))
 
 	// Create new consumer
@@ -35,7 +29,7 @@ func GetKafkaConsumer(brokers []string) (sarama.Consumer, error) {
 }
 
 // GetKafkaProducer returns a new consumer
-func GetKafkaProducer(brokers []string) (sarama.SyncProducer, error) {
+func GetKafkaProducer(brokers []string, file *os.File) (sarama.SyncProducer, error) {
 	config := sarama.NewConfig()
 
 	config.Producer.Retry.Max = 5
@@ -48,11 +42,6 @@ func GetKafkaProducer(brokers []string) (sarama.SyncProducer, error) {
 	producerMetricRegistry := metrics.NewPrefixedChildRegistry(appMetricRegistry, "producer.")
 
 	config.MetricRegistry = producerMetricRegistry
-
-	file, err := os.OpenFile("producer.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalln("Failed to open log file:", err)
-	}
 
 	go metrics.Log(producerMetricRegistry, 30*time.Second, log.New(file, "producer: ", log.Lmicroseconds))
 
@@ -67,12 +56,12 @@ func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- *sarama.Pr
 
 	for {
 		if len(signals) > 0 {
-			fmt.Println("Consumer - Interrupt is detected - exiting")
+			log.Println("Consumer - Interrupt is detected - exiting")
 			return
 		}
 		select {
 		case err := <-consumer.Errors():
-			fmt.Println(err)
+			log.Println(err)
 			return
 		case consumerMsg := <-consumer.Messages():
 			producerMsg := &sarama.ProducerMessage{
@@ -92,7 +81,7 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan *sarama.ProducerM
 
 	for {
 		if len(signals) > 0 {
-			fmt.Println("Producer - Interrupt is detected - exiting")
+			log.Println("Producer - Interrupt is detected - exiting")
 			return
 		}
 		select {
@@ -103,7 +92,7 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan *sarama.ProducerM
 				return
 			}
 
-			//fmt.Printf("Produced message to partition %d with offset %d\n", partition, offset)
+			//log.Printf("Produced message to partition %d with offset %d\n", partition, offset)
 		}
 	}
 }
@@ -118,12 +107,12 @@ func TestConsumer(partition int, producer chan<- int, wg *sync.WaitGroup) {
 func TestProducer(partition int, consumer <-chan int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	cPartition := <-consumer
-	fmt.Println("Producer ", partition, " Consumer ", cPartition)
+	log.Println("Producer ", partition, " Consumer ", cPartition)
 }
 
 // CloseProducer Closes the producer
 func CloseProducer(producer sarama.SyncProducer) {
-	fmt.Println("Trying to close Producer")
+	log.Println("Trying to close Producer")
 	if err := producer.Close(); err != nil {
 		// Should not reach here
 		panic(err)
@@ -132,7 +121,7 @@ func CloseProducer(producer sarama.SyncProducer) {
 
 // CloseConsumer closes the consumer
 func CloseConsumer(consumer sarama.Consumer) {
-	fmt.Println("Trying to close consumer")
+	log.Println("Trying to close consumer")
 	if err := consumer.Close(); err != nil {
 		// Should not reach here
 		panic(err)

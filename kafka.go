@@ -112,7 +112,7 @@ func MonitorChan(transferChan chan sarama.ProducerMessage, signals chan os.Signa
 
 // CloseProducer Closes the producer
 func CloseProducer(producer *sarama.SyncProducer) {
-	log.Println("Trying to close Producer")
+	log.Println("Closing producer client")
 	if err := (*producer).Close(); err != nil {
 		// Should not reach here
 		panic(err)
@@ -121,7 +121,7 @@ func CloseProducer(producer *sarama.SyncProducer) {
 
 // CloseConsumer closes the consumer
 func CloseConsumer(consumer *sarama.Consumer) {
-	log.Println("Trying to close consumer")
+	log.Println("Closing consumer client")
 	if err := (*consumer).Close(); err != nil {
 		// Should not reach here
 		panic(err)

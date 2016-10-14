@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 
 	"github.com/Shopify/sarama"
 )
@@ -44,7 +45,7 @@ func main() {
 	defer CloseProducer(producer)
 
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 
 	var wg sync.WaitGroup
 

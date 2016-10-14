@@ -52,7 +52,7 @@ func GetKafkaProducer(brokers []string, file *os.File) (sarama.SyncProducer, err
 
 // PullFromTopic pulls messages from the topic partition
 func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
-	defer (*wg).Done()
+	defer wg.Done()
 
 	for {
 		if len(signals) > 0 {
@@ -77,7 +77,7 @@ func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- sarama.Pro
 
 // PushToTopic pushes messages to topic
 func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
-	defer (*wg).Done()
+	defer wg.Done()
 
 	for {
 		if len(signals) > 0 {
@@ -99,7 +99,7 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMe
 
 // MonitorChan monitors the transfer channel
 func MonitorChan(transferChan chan sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
-	defer (*wg).Done()
+	defer wg.Done()
 	for {
 		if len(signals) > 0 {
 			log.Println("Monitor - Interrupt is detected - exiting")
@@ -108,19 +108,6 @@ func MonitorChan(transferChan chan sarama.ProducerMessage, signals chan os.Signa
 		log.Println("Transfer channel length: ", len(transferChan))
 		time.Sleep(10 * time.Second)
 	}
-}
-
-// TestConsumer testing
-func TestConsumer(partition int, producer chan<- int, wg *sync.WaitGroup) {
-	defer wg.Done()
-	producer <- partition
-}
-
-// TestProducer testing
-func TestProducer(partition int, consumer <-chan int, wg *sync.WaitGroup) {
-	defer wg.Done()
-	cPartition := <-consumer
-	log.Println("Producer ", partition, " Consumer ", cPartition)
 }
 
 // CloseProducer Closes the producer

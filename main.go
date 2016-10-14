@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -12,8 +13,13 @@ import (
 
 func main() {
 
+	stagingBrokers := os.Getenv("STAGING_BROKERS")
+	if stagingBrokers == "" {
+		log.Fatalln("No staging brokers supplied. Please set STAGING_BROKERS")
+	}
+
 	consumerBrokers := []string{"kafka-broker-01.ana.kochava.com:9092", "kafka-broker-02.ana.kochava.com:9092", "kafka-broker-03.ana.kochava.com:9092"}
-	producerBrokers := []string{"analytics-kafka-v000-9lzw:9092", "analytics-kafka-v000-u40u:9092", "analytics-kafka-v000-wrdq:9092"}
+	producerBrokers := strings.Split(stagingBrokers, ",")
 
 	logFile, err := os.OpenFile("/var/log/firehose/firehose.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {

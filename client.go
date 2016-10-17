@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/Shopify/sarama"
@@ -51,12 +50,12 @@ func (client CustomClient) GetCustomOffset(fraction float64) int {
 
 	newestOffset, err := client.GetOffset(client.topic, client.partition, sarama.OffsetNewest)
 	if err != nil {
-		fmt.Println("ERROR:", err)
+		log.Println("ERROR:", err)
 	}
 
 	oldestOffset, err := client.GetOffset(client.topic, client.partition, sarama.OffsetOldest)
 	if err != nil {
-		fmt.Println("ERROR:", err)
+		log.Println("ERROR:", err)
 	}
 
 	diff := newestOffset - oldestOffset

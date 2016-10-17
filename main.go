@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -13,15 +12,14 @@ import (
 
 func main() {
 
-	stagingBrokers := os.Getenv("STAGING_BROKERS")
-	if stagingBrokers == "" {
-		log.Fatalln("No staging brokers supplied. Please set STAGING_BROKERS")
-	}
+	config := InitConfig()
 
-	consumerBrokers := []string{"kafka-broker-01.ana.kochava.com:9092", "kafka-broker-02.ana.kochava.com:9092", "kafka-broker-03.ana.kochava.com:9092"}
-	producerBrokers := strings.Split(stagingBrokers, ",")
+	config.GetConfig()
 
-	logFile, err := os.OpenFile("/var/log/firehose/firehose.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	consumerBrokers := config.srcBrokers
+	producerBrokers := config.dstBrokers
+
+	logFile, err := os.OpenFile(config.firehoseLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalln("Failed to open log file:", err)
 	}
@@ -29,7 +27,7 @@ func main() {
 
 	log.SetOutput(logFile)
 
-	metricsFile, err := os.OpenFile("/var/log/firehose/metrics.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	metricsFile, err := os.OpenFile(config.metricsLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalln("Failed to open log file:", err)
 	}
@@ -38,13 +36,13 @@ func main() {
 	log.Println("Getting the Kafka consumer")
 	consumer, err := GetKafkaConsumer(consumerBrokers, metricsFile)
 	if err != nil {
-		log.Println("Unable to create consumer", err)
+		log.Fatalln("Unable to create consumer", err)
 	}
 
 	log.Println("Getting the Kafka producer")
 	producer, err := GetKafkaProducer(producerBrokers, metricsFile)
 	if err != nil {
-		log.Println("Unable to create producer", err)
+		log.Fatalln("Unable to create producer", err)
 	}
 
 	defer CloseConsumer(&consumer)
@@ -55,14 +53,14 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	topic := "events"
+	topic := config.topic
 
 	transferChan := make(chan sarama.ProducerMessage, 100000)
 	for partition := 0; partition < 24; partition++ {
 
 		partitionConsumer, err := consumer.ConsumePartition(topic, int32(partition), sarama.OffsetNewest)
 		if err != nil {
-			panic(err)
+			log.Fatalln("Unable to create partition consumer", err)
 		}
 
 		wg.Add(1)

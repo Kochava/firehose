@@ -88,7 +88,7 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMe
 		case consumerMsg := <-consumer:
 			_, _, err := producer.SendMessage(&consumerMsg)
 			if err != nil {
-				log.Fatalln("Failed to produce message to kafka cluster.")
+				log.Println("Failed to produce message to kafka cluster.")
 				return
 			}
 
@@ -115,7 +115,7 @@ func CloseProducer(producer *sarama.SyncProducer) {
 	log.Println("Closing producer client")
 	if err := (*producer).Close(); err != nil {
 		// Should not reach here
-		panic(err)
+		log.Println(err)
 	}
 }
 
@@ -124,6 +124,6 @@ func CloseConsumer(consumer *sarama.Consumer) {
 	log.Println("Closing consumer client")
 	if err := (*consumer).Close(); err != nil {
 		// Should not reach here
-		panic(err)
+		log.Println(err)
 	}
 }

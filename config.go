@@ -31,6 +31,14 @@ func InitConfig() Config {
 // GetConfig initialize all the configuration data for firehose
 func (config Config) GetConfig() {
 
+	historical := flag.Bool("historical", false, "Enable historical transfer")
+	if *historical {
+		fmt.Println("historical transfer enabled")
+	}
+	config.historical = *historical
+
+	flag.Parse()
+
 	sBrokers := os.Getenv("SRC_BROKERS")
 	if sBrokers == "" {
 		log.Fatalln("No source brokers supplied. Please set env var SRC_BROKERS")
@@ -64,11 +72,5 @@ func (config Config) GetConfig() {
 	} else {
 		config.firehoseLog = firehoseLog
 	}
-
-	historical := flag.Bool("historical", false, "Enable historical transfer")
-	if *historical {
-		fmt.Println("historical transfer enabled")
-	}
-	config.historical = *historical
 
 }

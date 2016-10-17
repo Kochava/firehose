@@ -26,7 +26,7 @@ type CustomClient struct {
 }
 
 // NewClient creates a new custom client
-func (client CustomClient) NewClient(srcBrokers []string, topic string, partition int32) CustomClient {
+func NewClient(srcBrokers []string, topic string, partition int32) CustomClient {
 	c, err := sarama.NewClient(srcBrokers, nil)
 	if err != nil {
 		log.Fatalln("ERROR:", err)

@@ -38,13 +38,13 @@ func main() {
 	log.Println("Getting the Kafka consumer")
 	consumer, err := GetKafkaConsumer(consumerBrokers, metricsFile)
 	if err != nil {
-		log.Println("Unable to create consumer", err)
+		log.Fatalln("Unable to create consumer", err)
 	}
 
 	log.Println("Getting the Kafka producer")
 	producer, err := GetKafkaProducer(producerBrokers, metricsFile)
 	if err != nil {
-		log.Println("Unable to create producer", err)
+		log.Fatalln("Unable to create producer", err)
 	}
 
 	defer CloseConsumer(&consumer)
@@ -62,7 +62,7 @@ func main() {
 
 		partitionConsumer, err := consumer.ConsumePartition(topic, int32(partition), sarama.OffsetNewest)
 		if err != nil {
-			panic(err)
+			log.Fatalln("Unable to create partition consumer", err)
 		}
 
 		wg.Add(1)

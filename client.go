@@ -29,7 +29,7 @@ type CustomClient struct {
 func (client CustomClient) NewClient(srcBrokers []string, topic string, partition int32) CustomClient {
 	c, err := sarama.NewClient(srcBrokers, nil)
 	if err != nil {
-		log.Println("ERROR:", err)
+		log.Fatalln("ERROR:", err)
 	}
 
 	return CustomClient{c, topic, partition}
@@ -50,12 +50,12 @@ func (client CustomClient) GetCustomOffset(fraction float64) int {
 
 	newestOffset, err := client.GetOffset(client.topic, client.partition, sarama.OffsetNewest)
 	if err != nil {
-		log.Println("ERROR:", err)
+		log.Fatalln("ERROR:", err)
 	}
 
 	oldestOffset, err := client.GetOffset(client.topic, client.partition, sarama.OffsetOldest)
 	if err != nil {
-		log.Println("ERROR:", err)
+		log.Fatalln("ERROR:", err)
 	}
 
 	diff := newestOffset - oldestOffset

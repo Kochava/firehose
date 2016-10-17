@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -13,15 +12,14 @@ import (
 
 func main() {
 
-	stagingBrokers := os.Getenv("STAGING_BROKERS")
-	if stagingBrokers == "" {
-		log.Fatalln("No staging brokers supplied. Please set STAGING_BROKERS")
-	}
+	config := InitConfig()
 
-	consumerBrokers := []string{"kafka-broker-01.ana.kochava.com:9092", "kafka-broker-02.ana.kochava.com:9092", "kafka-broker-03.ana.kochava.com:9092"}
-	producerBrokers := strings.Split(stagingBrokers, ",")
+	config.GetConfig()
 
-	logFile, err := os.OpenFile("/var/log/firehose/firehose.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	consumerBrokers := config.srcBrokers
+	producerBrokers := config.dstBrokers
+
+	logFile, err := os.OpenFile(config.firehoseLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalln("Failed to open log file:", err)
 	}
@@ -29,7 +27,7 @@ func main() {
 
 	log.SetOutput(logFile)
 
-	metricsFile, err := os.OpenFile("/var/log/firehose/metrics.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	metricsFile, err := os.OpenFile(config.metricsLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalln("Failed to open log file:", err)
 	}
@@ -55,7 +53,7 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	topic := "events"
+	topic := config.topic
 
 	transferChan := make(chan sarama.ProducerMessage, 100000)
 	for partition := 0; partition < 24; partition++ {

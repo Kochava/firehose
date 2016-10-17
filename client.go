@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/Shopify/sarama"
 )
@@ -29,10 +30,20 @@ type CustomClient struct {
 func (client CustomClient) NewClient(srcBrokers []string, topic string, partition int32) CustomClient {
 	c, err := sarama.NewClient(srcBrokers, nil)
 	if err != nil {
-		fmt.Println("ERROR:", err)
+		log.Println("ERROR:", err)
 	}
 
 	return CustomClient{c, topic, partition}
+}
+
+// GetNumPartitions gets the number of partitions for the topic
+func (client CustomClient) GetNumPartitions() int {
+	var list []int32
+	list, err := client.Partitions(client.topic)
+	if err != nil {
+		log.Fatalln("Unable to get number of partitions: ", err)
+	}
+	return len(list)
 }
 
 // GetCustomOffset takes a fraction of the total data stored in kafka and gets a relative offset

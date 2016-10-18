@@ -53,8 +53,10 @@ func main() {
 
 	var wg sync.WaitGroup
 
+	configClient := NewClient(config)
+
 	transferChan := make(chan sarama.ProducerMessage, 100000)
-	for partition := 0; partition < 24; partition++ {
+	for partition := 0; partition < configClient.GetNumPartitions(); partition++ {
 
 		partitionConsumer, err := consumer.ConsumePartition(config.topic, int32(partition), sarama.OffsetNewest)
 		if err != nil {

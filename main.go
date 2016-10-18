@@ -85,7 +85,7 @@ func main() {
 			partitionConsumer, err = consumer.ConsumePartition(config.topic, int32(partition), offset)
 			if err != nil {
 				log.Println("Unable to create partition consumer", err)
-				return
+				continue
 			}
 		}
 

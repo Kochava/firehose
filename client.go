@@ -26,13 +26,13 @@ type CustomClient struct {
 }
 
 // NewClient creates a new custom client
-func NewClient(srcBrokers []string, topic string, partition int32) CustomClient {
-	c, err := sarama.NewClient(srcBrokers, nil)
+func NewClient(config Config) CustomClient {
+	c, err := sarama.NewClient(config.srcBrokers, nil)
 	if err != nil {
 		log.Fatalln("ERROR:", err)
 	}
 
-	return CustomClient{c, topic, partition}
+	return CustomClient{c, config.topic, 0}
 }
 
 // GetNumPartitions gets the number of partitions for the topic

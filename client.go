@@ -46,7 +46,7 @@ func (client CustomClient) GetNumPartitions() int {
 }
 
 // GetCustomOffset takes a fraction of the total data stored in kafka and gets a relative offset
-func (client CustomClient) GetCustomOffset(fraction float64) int64 {
+func (client CustomClient) GetCustomOffset(fraction float64) (int64, int64) {
 
 	newestOffset, err := client.GetOffset(client.topic, client.partition, sarama.OffsetNewest)
 	if err != nil {
@@ -62,5 +62,5 @@ func (client CustomClient) GetCustomOffset(fraction float64) int64 {
 
 	fractionalOffset := float64(diff) * fraction
 
-	return int64(fractionalOffset)
+	return int64(fractionalOffset), newestOffset
 }

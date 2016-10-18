@@ -29,7 +29,7 @@ func InitConfig() Config {
 }
 
 // GetConfig initialize all the configuration data for firehose
-func (config Config) GetConfig() {
+func (config *Config) GetConfig() {
 
 	historical := flag.Bool("historical", false, "Enable historical transfer")
 	if *historical {

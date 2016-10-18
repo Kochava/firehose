@@ -53,12 +53,10 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	topic := config.topic
-
 	transferChan := make(chan sarama.ProducerMessage, 100000)
 	for partition := 0; partition < 24; partition++ {
 
-		partitionConsumer, err := consumer.ConsumePartition(topic, int32(partition), sarama.OffsetNewest)
+		partitionConsumer, err := consumer.ConsumePartition(config.topic, int32(partition), sarama.OffsetNewest)
 		if err != nil {
 			log.Fatalln("Unable to create partition consumer", err)
 		}

@@ -26,13 +26,13 @@ type CustomClient struct {
 }
 
 // NewClient creates a new custom client
-func NewClient(srcBrokers []string, topic string, partition int32) CustomClient {
-	c, err := sarama.NewClient(srcBrokers, nil)
+func NewClient(config Config) CustomClient {
+	c, err := sarama.NewClient(config.srcBrokers, nil)
 	if err != nil {
 		log.Fatalln("ERROR:", err)
 	}
 
-	return CustomClient{c, topic, partition}
+	return CustomClient{c, config.topic, 0}
 }
 
 // GetNumPartitions gets the number of partitions for the topic
@@ -46,7 +46,7 @@ func (client CustomClient) GetNumPartitions() int {
 }
 
 // GetCustomOffset takes a fraction of the total data stored in kafka and gets a relative offset
-func (client CustomClient) GetCustomOffset(fraction float64) int {
+func (client CustomClient) GetCustomOffset(fraction float64) (int64, int64) {
 
 	newestOffset, err := client.GetOffset(client.topic, client.partition, sarama.OffsetNewest)
 	if err != nil {
@@ -60,7 +60,11 @@ func (client CustomClient) GetCustomOffset(fraction float64) int {
 
 	diff := newestOffset - oldestOffset
 
-	fractionalOffset := float64(diff) * fraction
+	fractionalOffset := float64(newestOffset) - (float64(diff) * fraction)
 
-	return int(fractionalOffset)
+	log.Println("GetCustomOffset - newest offset ", newestOffset)
+	log.Println("GetCustomOffset - oldest offset ", oldestOffset)
+	log.Println("GetCustomOffset - fract  offset ", fractionalOffset)
+
+	return int64(fractionalOffset), newestOffset
 }

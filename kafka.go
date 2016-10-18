@@ -11,7 +11,7 @@ import (
 )
 
 // GetKafkaConsumer returns a new consumer
-func GetKafkaConsumer(brokers []string, file *os.File) (sarama.Consumer, error) {
+func GetKafkaConsumer(custConfig Config, file *os.File) (sarama.Consumer, error) {
 	config := sarama.NewConfig()
 	config.Consumer.Return.Errors = true
 
@@ -24,18 +24,23 @@ func GetKafkaConsumer(brokers []string, file *os.File) (sarama.Consumer, error) 
 	go metrics.Log(consumerMetricRegistry, 30*time.Second, log.New(file, "consumer: ", log.Lmicroseconds))
 
 	// Create new consumer
-	return sarama.NewConsumer(brokers, config)
+	return sarama.NewConsumer(custConfig.srcBrokers, config)
 
 }
 
 // GetKafkaProducer returns a new consumer
-func GetKafkaProducer(brokers []string, file *os.File) (sarama.SyncProducer, error) {
+func GetKafkaProducer(custConfig Config, file *os.File) (sarama.SyncProducer, error) {
 	config := sarama.NewConfig()
 
 	config.Producer.Retry.Max = 5
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Partitioner = sarama.NewManualPartitioner
 	config.ClientID = "firehose"
+	if custConfig.historical {
+		config.ClientID = "firehose-historical"
+	}
+
+	log.Println("GetKafkaProducer - client id ", config.ClientID)
 
 	appMetricRegistry := metrics.NewRegistry()
 
@@ -46,12 +51,18 @@ func GetKafkaProducer(brokers []string, file *os.File) (sarama.SyncProducer, err
 	go metrics.Log(producerMetricRegistry, 30*time.Second, log.New(file, "producer: ", log.Lmicroseconds))
 
 	// Create new consumer
-	return sarama.NewSyncProducer(brokers, config)
+	return sarama.NewSyncProducer(custConfig.dstBrokers, config)
 
 }
 
 // PullFromTopic pulls messages from the topic partition
-func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
+func PullFromTopic(consumer sarama.PartitionConsumer,
+	producer chan<- sarama.ProducerMessage,
+	signals chan os.Signal,
+	finalOffset int64,
+	syncChan chan int64,
+	wg *sync.WaitGroup) {
+
 	defer wg.Done()
 
 	for {
@@ -71,12 +82,23 @@ func PullFromTopic(consumer sarama.PartitionConsumer, producer chan<- sarama.Pro
 				Value:     sarama.StringEncoder(consumerMsg.Value),
 			}
 			producer <- producerMsg
+
+			if finalOffset > 0 && consumerMsg.Offset >= finalOffset {
+				syncChan <- consumerMsg.Offset
+				log.Println("Consumer - partition ", consumerMsg.Partition, " reached final offset, shutting down partition")
+				return
+			}
 		}
 	}
 }
 
 // PushToTopic pushes messages to topic
-func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
+func PushToTopic(producer sarama.SyncProducer,
+	consumer <-chan sarama.ProducerMessage,
+	signals chan os.Signal,
+	syncChan chan int64,
+	wg *sync.WaitGroup) {
+
 	defer wg.Done()
 
 	for {
@@ -88,11 +110,14 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMe
 		case consumerMsg := <-consumer:
 			_, _, err := producer.SendMessage(&consumerMsg)
 			if err != nil {
-				log.Println("Failed to produce message to kafka cluster.")
+				log.Println("Failed to produce message to kafka cluster. ", err)
 				return
 			}
-
-			//log.Printf("Produced message to partition %d with offset %d\n", partition, offset)
+		}
+		if len(consumer) <= 0 && len(syncChan) > 0 {
+			parNum := <-syncChan
+			log.Println("Producer - partition ", parNum, " finished, closing partition")
+			return
 		}
 	}
 }

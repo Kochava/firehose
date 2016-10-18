@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -29,15 +28,15 @@ func InitConfig() Config {
 }
 
 // GetConfig initialize all the configuration data for firehose
-func (config Config) GetConfig() {
+func (config *Config) GetConfig() {
 
 	historical := flag.Bool("historical", false, "Enable historical transfer")
+	flag.Parse()
+
 	if *historical {
-		fmt.Println("historical transfer enabled")
+		log.Println("historical transfer enabled")
 	}
 	config.historical = *historical
-
-	flag.Parse()
 
 	sBrokers := os.Getenv("SRC_BROKERS")
 	if sBrokers == "" {

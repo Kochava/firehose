@@ -105,7 +105,7 @@ func PushToTopic(producer sarama.SyncProducer,
 		case consumerMsg := <-consumer:
 			_, _, err := producer.SendMessage(&consumerMsg)
 			if err != nil {
-				log.Println("Failed to produce message to kafka cluster.")
+				log.Println("Failed to produce message to kafka cluster. ", err)
 				return
 			}
 		}

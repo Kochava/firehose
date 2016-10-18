@@ -57,6 +57,8 @@ func main() {
 	defer configClient.Close()
 
 	transferChan := make(chan sarama.ProducerMessage, 100000)
+
+	log.Println(configClient.GetNumPartitions())
 	for partition := 0; partition < configClient.GetNumPartitions(); partition++ {
 
 		syncChan := make(chan int64, 1)
@@ -73,6 +75,7 @@ func main() {
 
 		}
 
+		log.Println("Using offset ", offset, " for partition ", partition)
 		partitionConsumer, err := consumer.ConsumePartition(config.topic, int32(partition), offset)
 		if err != nil {
 			log.Fatalln("Unable to create partition consumer", err)

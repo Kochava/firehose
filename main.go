@@ -54,24 +54,39 @@ func main() {
 	var wg sync.WaitGroup
 
 	configClient := NewClient(config)
+	defer configClient.Close()
 
 	transferChan := make(chan sarama.ProducerMessage, 100000)
 	for partition := 0; partition < configClient.GetNumPartitions(); partition++ {
 
-		partitionConsumer, err := consumer.ConsumePartition(config.topic, int32(partition), sarama.OffsetNewest)
+		syncChan := make(chan int64, 1)
+		offset := sarama.OffsetNewest
+		finalOffset := int64(-1)
+
+		if config.historical {
+			c := NewClient(config)
+			offset, finalOffset = c.GetCustomOffset(lastFourHours)
+			err := c.Close()
+			if err != nil {
+				log.Fatalln("Unable to close client. ", err)
+			}
+
+		}
+
+		partitionConsumer, err := consumer.ConsumePartition(config.topic, int32(partition), offset)
 		if err != nil {
 			log.Fatalln("Unable to create partition consumer", err)
 		}
 
 		wg.Add(1)
 
-		go PullFromTopic(partitionConsumer, transferChan, signals, &wg)
+		go PullFromTopic(partitionConsumer, transferChan, signals, finalOffset, syncChan, &wg)
 		log.Println("Started consumer for partition ", partition)
 
 		wg.Add(2)
-		go PushToTopic(producer, transferChan, signals, &wg)
+		go PushToTopic(producer, transferChan, signals, syncChan, &wg)
 		log.Println("Started producer")
-		go PushToTopic(producer, transferChan, signals, &wg)
+		go PushToTopic(producer, transferChan, signals, syncChan, &wg)
 		log.Println("Started producer")
 	}
 

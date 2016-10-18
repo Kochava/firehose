@@ -60,7 +60,11 @@ func (client CustomClient) GetCustomOffset(fraction float64) (int64, int64) {
 
 	diff := newestOffset - oldestOffset
 
-	fractionalOffset := float64(diff) * fraction
+	fractionalOffset := float64(newestOffset) - (float64(diff) * fraction)
+
+	log.Println("GetCustomOffset - newest offset ", newestOffset)
+	log.Println("GetCustomOffset - oldest offset ", oldestOffset)
+	log.Println("GetCustomOffset - fract  offset ", fractionalOffset)
 
 	return int64(fractionalOffset), newestOffset
 }

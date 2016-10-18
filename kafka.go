@@ -11,7 +11,7 @@ import (
 )
 
 // GetKafkaConsumer returns a new consumer
-func GetKafkaConsumer(brokers []string, file *os.File) (sarama.Consumer, error) {
+func GetKafkaConsumer(custConfig Config, file *os.File) (sarama.Consumer, error) {
 	config := sarama.NewConfig()
 	config.Consumer.Return.Errors = true
 
@@ -24,18 +24,23 @@ func GetKafkaConsumer(brokers []string, file *os.File) (sarama.Consumer, error) 
 	go metrics.Log(consumerMetricRegistry, 30*time.Second, log.New(file, "consumer: ", log.Lmicroseconds))
 
 	// Create new consumer
-	return sarama.NewConsumer(brokers, config)
+	return sarama.NewConsumer(custConfig.srcBrokers, config)
 
 }
 
 // GetKafkaProducer returns a new consumer
-func GetKafkaProducer(brokers []string, file *os.File) (sarama.SyncProducer, error) {
+func GetKafkaProducer(custConfig Config, file *os.File) (sarama.SyncProducer, error) {
 	config := sarama.NewConfig()
 
 	config.Producer.Retry.Max = 5
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Partitioner = sarama.NewManualPartitioner
 	config.ClientID = "firehose"
+	if custConfig.historical {
+		config.ClientID = "firehose-historical"
+	}
+
+	log.Println("GetKafkaProducer - client id ", config.ClientID)
 
 	appMetricRegistry := metrics.NewRegistry()
 
@@ -46,7 +51,7 @@ func GetKafkaProducer(brokers []string, file *os.File) (sarama.SyncProducer, err
 	go metrics.Log(producerMetricRegistry, 30*time.Second, log.New(file, "producer: ", log.Lmicroseconds))
 
 	// Create new consumer
-	return sarama.NewSyncProducer(brokers, config)
+	return sarama.NewSyncProducer(custConfig.dstBrokers, config)
 
 }
 

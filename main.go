@@ -16,9 +16,6 @@ func main() {
 
 	config.GetConfig()
 
-	consumerBrokers := config.srcBrokers
-	producerBrokers := config.dstBrokers
-
 	logFile, err := os.OpenFile(config.firehoseLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalln("Failed to open log file:", err)
@@ -34,13 +31,13 @@ func main() {
 	defer metricsFile.Close()
 
 	log.Println("Getting the Kafka consumer")
-	consumer, err := GetKafkaConsumer(consumerBrokers, metricsFile)
+	consumer, err := GetKafkaConsumer(config, metricsFile)
 	if err != nil {
 		log.Fatalln("Unable to create consumer", err)
 	}
 
 	log.Println("Getting the Kafka producer")
-	producer, err := GetKafkaProducer(producerBrokers, metricsFile)
+	producer, err := GetKafkaProducer(config, metricsFile)
 	if err != nil {
 		log.Fatalln("Unable to create producer", err)
 	}

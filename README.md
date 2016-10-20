@@ -7,6 +7,12 @@ Firehose is a Kafka transfer agent which can do real-time or historical transfer
 * sarama
 * go-metrics
 
+installing deps with glide  
+`glide install`
+
+updating deps with glide  
+`glide update`
+
 ### Todo
 
 * Add more documentation

@@ -1,5 +1,5 @@
-hash: 3ef2cbbef2fab779c72364d8481cf09fbd5a7b283fa7bbdb4dd0cad3f12059b8
-updated: 2016-10-20T16:01:01.982505728-07:00
+hash: d392b88297370412f47c415f3cb335b7589f617a24a67218253bd72ee7a98c57
+updated: 2016-10-21T08:50:29.138123497-07:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
@@ -20,5 +20,5 @@ imports:
 - name: github.com/rcrowley/go-metrics
   version: ab2277b1c5d15c3cba104e9cbddbdfc622df5ad8
 - name: github.com/Shopify/sarama
-  version: bd61cae2be85fa6ff40eb23dcdd24567967ac2ae
+  version: 1548006a8b86e4431c98a96ff029d8c2cfdf7fd3
 testImports: []

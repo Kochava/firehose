@@ -91,7 +91,7 @@ func main() {
 		if err != nil {
 			log.Println("Unable to create partition consumer", err)
 			c := NewClient(config)
-			offset, finalOffset = c.GetCustomOffset(lastFourHours)
+			offset, finalOffset = c.GetCustomOffset(lastOneDays)
 			err := c.Close()
 			if err != nil {
 				log.Fatalln("Unable to close client. ", err)

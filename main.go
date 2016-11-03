@@ -89,18 +89,10 @@ func main() {
 		log.Println("Using offset ", offset, " for partition ", partition)
 		partitionConsumer, err := consumer.ConsumePartition(config.topic, int32(partition), offset)
 		if err != nil {
+			// For now if we can create for this offset no use in trying again as it won't succeed.
+			// need to find a better way to calculate time based offset.
 			log.Println("Unable to create partition consumer", err)
-			c := NewClient(config)
-			offset, finalOffset = c.GetCustomOffset(lastOneDays)
-			err := c.Close()
-			if err != nil {
-				log.Fatalln("Unable to close client. ", err)
-			}
-			partitionConsumer, err = consumer.ConsumePartition(config.topic, int32(partition), offset)
-			if err != nil {
-				log.Println("Unable to create partition consumer", err)
-				continue
-			}
+			continue
 		}
 
 		wg.Add(1)

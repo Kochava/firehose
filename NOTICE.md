@@ -16,3 +16,10 @@ https://github.com/Shopify/sarama
 go-metrics is used to log tranfer metrics for Firehose
 
 https://github.com/rcrowley/go-metrics
+
+
+# stretchr/testify
+
+testify is used for the simple helpers it adds to unit testing in Go
+
+https://github.com/stretchr/testify

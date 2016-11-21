@@ -85,5 +85,4 @@ func (config *Config) GetConfig() {
 	} else {
 		config.firehoseLog = firehoseLog
 	}
-
 }

@@ -4,8 +4,9 @@ Firehose
 Firehose is a Kafka transfer agent which can do real-time or historical transfers of a Topic from one set of Brokers to another. This is useful when you want the two clusters to remain independent and not use the built in replication process of Kafka.
 
 ### Requirements
-* sarama
-* go-metrics
+* Shopify/sarama
+* rcrowley/go-metrics
+* stretchr/testify/assert
 
 ## Install
 

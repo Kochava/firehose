@@ -1,0 +1,10 @@
+version: "2"
+services:
+  golang-runner:
+    image: golang:1.7-alpine
+    volumes:
+      - .:/usr/src/go/src/git.dev.kochava.com/jbury/firehose
+    working_dir: /usr/src/go/src/git.dev.kochava.com/jbury/firehose
+    command: go --version
+    environment:
+      - GOPATH=/usr/src/go

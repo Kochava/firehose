@@ -1,12 +1,17 @@
 language: go
-
 go:
-  - 1.7
-
+- 1.7
+- tip
 install:
-  - go get
-  - go get -v github.com/Masterminds/glide
-  - cd $GOPATH/src/github.com/Masterminds/glide && git checkout tags/v0.12.3 && go install && cd -
-  - glide install
-
-script: go test -v
+- go get
+- go get -v github.com/Masterminds/glide
+- go get -v golang.org/x/tools/cmd/cover
+- go get -v github.com/mattn/goveralls
+- cd $GOPATH/src/github.com/Masterminds/glide && git checkout tags/v0.12.3 && go install
+  && cd -
+- glide install
+script: go test -v -covermode=count -coverprofile=coverage.out $HOME/gopath/bin/goveralls
+  coverprofile=coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN
+env:
+  global:
+    secure: Df/B7WnHYCLCw/3Ekmu9lS49Dnf4xsFx36CBXO3dvBbjSud/5Y3iMuFxYSTTdhWO7GZ4spWJU2Wf2VtQ3xveWtBC7kuOcPXFrHA3lqHtGEu9gzqxTtCzFreCaq6k91RoIzqqGE/MDY+xn63wX28tyB25tAhXTR1WTQZwsQsg0UQOVJlC+305PRrmbhfzh/PWnRMIXHUbg/6OOr5BCZ0XeEvvnjIX/hJlW1cYx/LiKhgulXRleKihrO2rowUNFWO43ly0+B1GrCqc+dZbQa762q9WHAlYoVzni7osVP63wbBS4LdomzTXRqwFHwINF7SwmcR3GT0g30026kCSgfbM974Bm7vqd4YxOvYI33Au9OsQdDhY0pZAue83Y3BhKMEFxbGAq17siu0jP+z0l3LmVAPPA3VcDRHtOTybtgdkxdaWF1bqVJAwty9zZTlZK9Ki9mwgEL1jBsd1eqnHQWfq0dTx5vyy+9WLVZVS/UAL9su+uAHo8F7h+6NV8GkC2u1vHIsnTF+1xW5lZk5+m42B2DnFrc84urqmfTkuoeESCFJaNaowJZYJU8qC+wsjNxIGtbtCeY+4fB6KHNjh05gF8D1FcGq26tGaZmjFZRDkTktinmz1Ay+wjA399PeV2NNAmcVyRAnKf/CTevuTseaNgFQMlvQ5aPb+PtQlsfJDGAM=

@@ -1,0 +1,60 @@
+# Copyright 2016 Kochava
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Tags for unprivileged execution in sh. sh runners use Alpine as a default
+# image.
+.unprivileged-alpine-runner:
+  tags: &unprivileged_alpine_tags
+    - autoscale-docker
+    - shell/sh
+    - unprivileged
+.privileged:
+  tags: &privileged_tags
+    - autoscale-docker
+    - shell/bash
+    - privileged
+stages:
+  - pre
+  - test
+vendor deps:
+  stage: pre
+  tags: *unprivileged_alpine_tags
+  image: spifftastic/go-builder:latest
+  # Generate artifacts -- these can be required by builds in later stages (e.g.,
+  # test, build, deploy, etc.). In this case, we want the vendor directory from
+  # this step to be passed into the next steps so that we don't need to clone
+  # things from e.g., GitHub and so on for each build.
+  artifacts:
+    name: vendor-artifacts
+    expire_in: 10m
+    paths: &submodule_paths
+      - vendor
+  script:
+    - go get github.com/Masterminds/glide
+    - glide --debug install
+run unit-tests:
+  stage: test
+  tags: *privileged_tags
+  dependencies:
+    - vendor deps
+  artifacts:
+    name: coverage-report.zip
+    expire_in: 30m
+    paths:
+        - cover.out
+        - cover.html
+  script:
+    - docker-compose run golang-runner go test -coverprofile=cover.out -v .
+    - docker-compose run golang-runner go tool cover -html cover.out -o cover.html
+    - docker-compose down

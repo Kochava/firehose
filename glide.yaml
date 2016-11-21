@@ -3,4 +3,6 @@ import:
 - package: github.com/Shopify/sarama
   version: ~1.10.1
 - package: github.com/rcrowley/go-metrics
-- package: github.com/stretchr/testify/assert
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert

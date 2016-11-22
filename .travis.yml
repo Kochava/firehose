@@ -12,5 +12,5 @@ install:
 - glide install
 script:
   - go test -v -covermode=count -coverprofile=coverage.out
-after_succes:
+after_success:
   - $GOPATH/bin/goveralls -coverprofile=coverage.out -service=travis-ci

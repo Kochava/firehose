@@ -1,4 +1,4 @@
-Firehose [![Build Status](https://travis-ci.org/Kochava/firehose.svg?branch=master)](https://travis-ci.org/Kochava/firehose)
+Firehose [![Build Status](https://travis-ci.org/Kochava/firehose.svg?branch=master)](https://travis-ci.org/Kochava/firehose) [![Coverage Status](https://coveralls.io/repos/github/Kochava/firehose/badge.svg?branch=master)](https://coveralls.io/github/Kochava/firehose?branch=master)
 ======
 
 Firehose is a Kafka transfer agent which can do real-time or historical transfers of a Topic from one set of Brokers to another. This is useful when you want the two clusters to remain independent and not use the built in replication process of Kafka.

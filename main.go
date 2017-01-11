@@ -95,16 +95,18 @@ func main() {
 			continue
 		}
 
-		wg.Add(1)
+		wg.Add(2)
 
 		go PullFromTopic(partitionConsumer, transferChan, signals, finalOffset, syncChan, &wg)
 		log.Println("Started consumer for partition ", partition)
+		go PullFromTopic(partitionConsumer, transferChan, signals, finalOffset, syncChan, &wg)
+		log.Println("Started consumer for partition ", partition)
 
-		wg.Add(2)
+		wg.Add(1)
 		go PushToTopic(producer, transferChan, signals, syncChan, &wg)
 		log.Println("Started producer")
-		go PushToTopic(producer, transferChan, signals, syncChan, &wg)
-		log.Println("Started producer")
+		// go PushToTopic(producer, transferChan, signals, syncChan, &wg)
+		// log.Println("Started producer")
 	}
 
 	go MonitorChan(transferChan, signals, &wg)

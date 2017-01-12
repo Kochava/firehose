@@ -1,0 +1,9 @@
+[submodule "vendor/github.com/Shopify/sarama"]
+	path = vendor/github.com/Shopify/sarama
+	url = https://github.com/Shopify/sarama
+[submodule "vendor/github.com/urfave/cli"]
+	path = vendor/github.com/urfave/cli
+	url = https://github.com/urfave/cli
+[submodule "vendor/github.com/wvanbergen/kafka"]
+	path = vendor/github.com/wvanbergen/kafka
+	url = https://github.com/wvanbergen/kafka

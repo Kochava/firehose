@@ -22,11 +22,13 @@ import (
 
 	"github.com/Shopify/sarama"
 	metrics "github.com/rcrowley/go-metrics"
+	"github.com/wvanbergen/kafka/consumergroup"
+	"github.com/wvanbergen/kazoo-go"
 )
 
 // GetKafkaConsumer returns a new consumer
-func GetKafkaConsumer(custConfig Config, file *os.File) (sarama.Consumer, error) {
-	config := sarama.NewConfig()
+func GetKafkaConsumer(custConfig Config, file *os.File) (*consumergroup.ConsumerGroup, error) {
+	config := consumergroup.NewConfig()
 	config.Consumer.Return.Errors = true
 
 	appMetricRegistry := metrics.NewRegistry()
@@ -37,18 +39,31 @@ func GetKafkaConsumer(custConfig Config, file *os.File) (sarama.Consumer, error)
 
 	go metrics.Log(consumerMetricRegistry, 30*time.Second, log.New(file, "consumer: ", log.Lmicroseconds))
 
+	config.Offsets.Initial = sarama.OffsetNewest
+	config.Offsets.ProcessingTimeout = 10 * time.Second
+
+	var zookeeperNodes []string
+	zookeeperNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(custConfig.zookeepers)
+
+	consumer, consumerErr := consumergroup.JoinConsumerGroup("firehose_realtime", []string{custConfig.topic}, zookeeperNodes, config)
+	if consumerErr != nil {
+		return nil, consumerErr
+	}
+
 	// Create new consumer
-	return sarama.NewConsumer(custConfig.srcBrokers, config)
+	return consumer, nil
 
 }
 
 // GetKafkaProducer returns a new consumer
-func GetKafkaProducer(custConfig Config, file *os.File) (sarama.SyncProducer, error) {
+func GetKafkaProducer(custConfig Config, file *os.File) (sarama.AsyncProducer, error) {
 	config := sarama.NewConfig()
 
 	config.Producer.Retry.Max = 5
-	config.Producer.RequiredAcks = sarama.WaitForAll
-	config.Producer.Partitioner = sarama.NewManualPartitioner
+	config.Producer.RequiredAcks = sarama.WaitForLocal
+	config.Producer.Return.Errors = false
+	config.Producer.Return.Successes = false
+	// config.Producer.Partitioner = sarama.NewManualPartitioner
 	config.ClientID = "firehose"
 	if custConfig.historical {
 		config.ClientID = "firehose-historical"
@@ -65,12 +80,12 @@ func GetKafkaProducer(custConfig Config, file *os.File) (sarama.SyncProducer, er
 	go metrics.Log(producerMetricRegistry, 30*time.Second, log.New(file, "producer: ", log.Lmicroseconds))
 
 	// Create new consumer
-	return sarama.NewSyncProducer(custConfig.dstBrokers, config)
+	return sarama.NewAsyncProducer(custConfig.dstBrokers, config)
 
 }
 
 // PullFromTopic pulls messages from the topic partition
-func PullFromTopic(consumer sarama.PartitionConsumer,
+func PullFromTopic(consumer *consumergroup.ConsumerGroup,
 	producer chan<- sarama.ProducerMessage,
 	signals chan os.Signal,
 	finalOffset int64,
@@ -107,7 +122,7 @@ func PullFromTopic(consumer sarama.PartitionConsumer,
 }
 
 // PushToTopic pushes messages to topic
-func PushToTopic(producer sarama.SyncProducer,
+func PushToTopic(producer sarama.AsyncProducer,
 	consumer <-chan sarama.ProducerMessage,
 	signals chan os.Signal,
 	syncChan chan int64,
@@ -122,11 +137,7 @@ func PushToTopic(producer sarama.SyncProducer,
 		}
 		select {
 		case consumerMsg := <-consumer:
-			_, _, err := producer.SendMessage(&consumerMsg)
-			if err != nil {
-				log.Println("Failed to produce message to kafka cluster. ", err)
-				return
-			}
+			producer.Input() <- &consumerMsg
 		}
 		if len(consumer) <= 0 && len(syncChan) > 0 {
 			parNum := <-syncChan
@@ -150,7 +161,7 @@ func MonitorChan(transferChan chan sarama.ProducerMessage, signals chan os.Signa
 }
 
 // CloseProducer Closes the producer
-func CloseProducer(producer *sarama.SyncProducer) {
+func CloseProducer(producer *sarama.AsyncProducer) {
 	log.Println("Closing producer client")
 	if err := (*producer).Close(); err != nil {
 		// Should not reach here
@@ -159,7 +170,7 @@ func CloseProducer(producer *sarama.SyncProducer) {
 }
 
 // CloseConsumer closes the consumer
-func CloseConsumer(consumer *sarama.Consumer) {
+func CloseConsumer(consumer *consumergroup.ConsumerGroup) {
 	log.Println("Closing consumer client")
 	if err := (*consumer).Close(); err != nil {
 		// Should not reach here

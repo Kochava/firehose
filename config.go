@@ -30,6 +30,7 @@ const (
 type Config struct {
 	srcBrokers  []string
 	dstBrokers  []string
+	zookeepers  string
 	topic       string
 	metricsLog  string
 	firehoseLog string
@@ -63,6 +64,12 @@ func (config *Config) GetConfig() {
 		log.Fatalln("No destination brokers supplied. Please set env var DST_BROKERS")
 	}
 	config.dstBrokers = strings.Split(dBrokers, ",")
+
+	zookeepers := os.Getenv("ZOOKEEPERS")
+	if zookeepers == "" {
+		log.Fatalln("No zookeeper nodes supplied. Please set env var ZOOKEEPERS")
+	}
+	config.zookeepers = zookeepers
 
 	topic := os.Getenv("TOPIC")
 	if topic == "" {

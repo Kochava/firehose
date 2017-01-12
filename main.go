@@ -56,7 +56,7 @@ func main() {
 		log.Fatalln("Unable to create producer", err)
 	}
 
-	defer CloseConsumer(&consumer)
+	defer CloseConsumer(consumer)
 	defer CloseProducer(&producer)
 
 	signals := make(chan os.Signal, 1)
@@ -73,33 +73,33 @@ func main() {
 	for partition := 0; partition < configClient.GetNumPartitions(); partition++ {
 
 		syncChan := make(chan int64, 1)
-		offset := sarama.OffsetNewest
+		// offset := sarama.OffsetNewest
 		finalOffset := int64(-1)
 
-		if config.historical {
-			c := NewClient(config)
-			offset, finalOffset = c.GetCustomOffset(lastFourHours)
-			err := c.Close()
-			if err != nil {
-				log.Fatalln("Unable to close client. ", err)
-			}
+		// if config.historical {
+		// 	c := NewClient(config)
+		// 	offset, finalOffset = c.GetCustomOffset(lastFourHours)
+		// 	err := c.Close()
+		// 	if err != nil {
+		// 		log.Fatalln("Unable to close client. ", err)
+		// 	}
+		//
+		// }
 
-		}
-
-		log.Println("Using offset ", offset, " for partition ", partition)
-		partitionConsumer, err := consumer.ConsumePartition(config.topic, int32(partition), offset)
-		if err != nil {
-			// For now if we can create for this offset no use in trying again as it won't succeed.
-			// need to find a better way to calculate time based offset.
-			log.Println("Unable to create partition consumer", err)
-			continue
-		}
+		// log.Println("Using offset ", offset, " for partition ", partition)
+		// partitionConsumer, err := consumer.ConsumePartition(config.topic, int32(partition), offset)
+		// if err != nil {
+		// 	// For now if we can create for this offset no use in trying again as it won't succeed.
+		// 	// need to find a better way to calculate time based offset.
+		// 	log.Println("Unable to create partition consumer", err)
+		// 	continue
+		// }
 
 		wg.Add(2)
 
-		go PullFromTopic(partitionConsumer, transferChan, signals, finalOffset, syncChan, &wg)
+		go PullFromTopic(consumer, transferChan, signals, finalOffset, syncChan, &wg)
 		log.Println("Started consumer for partition ", partition)
-		go PullFromTopic(partitionConsumer, transferChan, signals, finalOffset, syncChan, &wg)
+		go PullFromTopic(consumer, transferChan, signals, finalOffset, syncChan, &wg)
 		log.Println("Started consumer for partition ", partition)
 
 		wg.Add(1)

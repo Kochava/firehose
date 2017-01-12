@@ -5,3 +5,7 @@ import:
 - package: github.com/stretchr/testify
   subpackages:
   - assert
+- package: github.com/wvanbergen/kafka
+  subpackages:
+  - consumergroup
+- package: github.com/wvanbergen/kazoo-go

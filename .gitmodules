@@ -34,3 +34,9 @@
 [submodule "vendor/github.com/rcrowley/go-metrics"]
 	path = vendor/github.com/rcrowley/go-metrics
 	url = https://github.com/rcrowley/go-metrics
+[submodule "vendor/github.com/golang/snappy"]
+	path = vendor/github.com/golang/snappy
+	url = https://github.com/golang/snappy
+[submodule "vendor/github.com/samuel/go-zookeeper"]
+	path = vendor/github.com/samuel/go-zookeeper
+	url = https://github.com/samuel/go-zookeeper

@@ -16,38 +16,30 @@ package main
 
 import (
 	"log"
-	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
-	metrics "github.com/rcrowley/go-metrics"
 	"github.com/wvanbergen/kafka/consumergroup"
 	"github.com/wvanbergen/kazoo-go"
 )
 
 // GetKafkaConsumer returns a new consumer
-func GetKafkaConsumer(custConfig Config, file *os.File) (*consumergroup.ConsumerGroup, error) {
-	config := consumergroup.NewConfig()
-	config.Consumer.Return.Errors = true
+func GetKafkaConsumer(custConfig *Config) (*consumergroup.ConsumerGroup, error) {
+	groupConfig := consumergroup.NewConfig()
+	groupConfig.Offsets.Initial = sarama.OffsetNewest
+	groupConfig.Offsets.ProcessingTimeout = 10 * time.Second
 
-	appMetricRegistry := metrics.NewRegistry()
+	zookeeperNodes := strings.Split(custConfig.SourceZookeepers, ",")
+	groupConfig.Zookeeper.Chroot = ""
 
-	consumerMetricRegistry := metrics.NewPrefixedChildRegistry(appMetricRegistry, "consumer.")
+	topic := []string{custConfig.Topic}
 
-	config.MetricRegistry = consumerMetricRegistry
-
-	go metrics.Log(consumerMetricRegistry, 30*time.Second, log.New(file, "consumer: ", log.Lmicroseconds))
-
-	config.Offsets.Initial = sarama.OffsetNewest
-	config.Offsets.ProcessingTimeout = 10 * time.Second
-
-	var zookeeperNodes []string
-	zookeeperNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(custConfig.zookeepers)
-
-	consumer, consumerErr := consumergroup.JoinConsumerGroup("firehose_realtime", []string{custConfig.topic}, zookeeperNodes, config)
-	if consumerErr != nil {
-		return nil, consumerErr
+	consumer, err := consumergroup.JoinConsumerGroup("firehose", topic, zookeeperNodes, groupConfig)
+	if err != nil {
+		log.Printf("GetKafkaConsumer - Failed to join consumer group: %v\n", err)
+		return nil, err
 	}
 
 	// Create new consumer
@@ -55,125 +47,101 @@ func GetKafkaConsumer(custConfig Config, file *os.File) (*consumergroup.Consumer
 
 }
 
-// GetKafkaProducer returns a new consumer
-func GetKafkaProducer(custConfig Config, file *os.File) (sarama.AsyncProducer, error) {
-	config := sarama.NewConfig()
+// GetConsumerErrors logs any consumer errors
+func GetConsumerErrors(consumer *consumergroup.ConsumerGroup) {
+	for err := range consumer.Errors() {
+		log.Printf("GetConsumerErrors - %v\n", err)
+	}
+}
 
-	config.Producer.Retry.Max = 5
-	config.Producer.RequiredAcks = sarama.WaitForLocal
-	config.Producer.Return.Errors = false
-	config.Producer.Return.Successes = false
+// GetKafkaProducer returns a new consumer
+func GetKafkaProducer(custConfig *Config) (sarama.AsyncProducer, error) {
+	config := consumergroup.NewConfig()
+
+	config.Config.Producer.Retry.Max = 5
+	config.Config.Producer.RequiredAcks = sarama.WaitForLocal
+	config.Config.Producer.Return.Errors = false
+	config.Config.Producer.Return.Successes = false
 	// config.Producer.Partitioner = sarama.NewManualPartitioner
-	config.ClientID = "firehose"
-	if custConfig.historical {
-		config.ClientID = "firehose-historical"
+	config.Config.ClientID = "firehose"
+
+	log.Printf("GetKafkaProducer - client id %v\n", config.Config.ClientID)
+
+	zookeepers := strings.Split(custConfig.DestinationZookeepers, ",")
+	kz, err := kazoo.NewKazoo(zookeepers, config.Zookeeper)
+	if err != nil {
+		log.Printf("GetKafkaProducer - Unable to create zookeeper object: %v\n", err)
+		return nil, err
 	}
 
-	log.Println("GetKafkaProducer - client id ", config.ClientID)
-
-	appMetricRegistry := metrics.NewRegistry()
-
-	producerMetricRegistry := metrics.NewPrefixedChildRegistry(appMetricRegistry, "producer.")
-
-	config.MetricRegistry = producerMetricRegistry
-
-	go metrics.Log(producerMetricRegistry, 30*time.Second, log.New(file, "producer: ", log.Lmicroseconds))
-
 	// Create new consumer
-	return sarama.NewAsyncProducer(custConfig.dstBrokers, config)
+	brokerList, bErr := kz.BrokerList()
+	if bErr != nil {
+		log.Printf("GetKafkaProducer - Unable to get broker list: %v\n", err)
+		return nil, err
+	}
 
+	return sarama.NewAsyncProducer(brokerList, config.Config)
 }
 
 // PullFromTopic pulls messages from the topic partition
-func PullFromTopic(consumer *consumergroup.ConsumerGroup,
-	producer chan<- sarama.ProducerMessage,
-	signals chan os.Signal,
-	finalOffset int64,
-	syncChan chan int64,
-	wg *sync.WaitGroup) {
-
+func PullFromTopic(consumer *consumergroup.ConsumerGroup, producer chan<- sarama.ProducerMessage, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	for {
-		if len(signals) > 0 {
-			log.Println("Consumer - Interrupt is detected - exiting")
-			return
+	for consumerMsg := range consumer.Messages() {
+		producerMsg := sarama.ProducerMessage{
+			Topic:     consumerMsg.Topic,
+			Partition: consumerMsg.Partition,
+			Key:       sarama.StringEncoder(consumerMsg.Key),
+			Value:     sarama.StringEncoder(consumerMsg.Value),
 		}
-		select {
-		case err := <-consumer.Errors():
-			log.Println(err)
-			return
-		case consumerMsg := <-consumer.Messages():
-			producerMsg := sarama.ProducerMessage{
-				Topic:     consumerMsg.Topic,
-				Partition: consumerMsg.Partition,
-				Key:       sarama.StringEncoder(consumerMsg.Key),
-				Value:     sarama.StringEncoder(consumerMsg.Value),
-			}
-			producer <- producerMsg
-
-			if finalOffset > 0 && consumerMsg.Offset >= finalOffset {
-				syncChan <- consumerMsg.Offset
-				log.Println("Consumer - partition ", consumerMsg.Partition, " reached final offset, shutting down partition")
-				return
-			}
-		}
+		producer <- producerMsg
+		consumer.CommitUpto(consumerMsg)
 	}
+	// 	// for {
+	// 	// 	if len(signals) > 0 {
+	// 	// 		log.Println("Consumer - Interrupt is detected - exiting")
+	// 	// 		return
+	// 	// 	}
+	// 	// 	select {
+	// 	// 	case err := <-consumer.Errors():
+	// 	// 		log.Println(err)
+	// 	// 		return
+	// 	// 	case consumerMsg := <-consumer.Messages():
+	// 	// 		producerMsg := sarama.ProducerMessage{
+	// 	// 			Topic:     consumerMsg.Topic,
+	// 	// 			Partition: consumerMsg.Partition,
+	// 	// 			Key:       sarama.StringEncoder(consumerMsg.Key),
+	// 	// 			Value:     sarama.StringEncoder(consumerMsg.Value),
+	// 	// 		}
+	// 	//
+	// 	//
+	// 	// 		if finalOffset > 0 && consumerMsg.Offset >= finalOffset {
+	// 	// 			syncChan <- consumerMsg.Offset
+	// 	// 			log.Println("Consumer - partition ", consumerMsg.Partition, " reached final offset, shutting down partition")
+	// 	// 			return
+	// 	// 		}
+	// 	// 	}
+	// 	// }
 }
 
 // PushToTopic pushes messages to topic
-func PushToTopic(producer sarama.AsyncProducer,
-	consumer <-chan sarama.ProducerMessage,
-	signals chan os.Signal,
-	syncChan chan int64,
-	wg *sync.WaitGroup) {
-
+func PushToTopic(producer sarama.AsyncProducer, consumer <-chan sarama.ProducerMessage, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
-		if len(signals) > 0 {
-			log.Println("Producer - Interrupt is detected - exiting")
-			return
-		}
 		select {
 		case consumerMsg := <-consumer:
 			producer.Input() <- &consumerMsg
-		}
-		if len(consumer) <= 0 && len(syncChan) > 0 {
-			parNum := <-syncChan
-			log.Println("Producer - partition ", parNum, " finished, closing partition")
-			return
 		}
 	}
 }
 
 // MonitorChan monitors the transfer channel
-func MonitorChan(transferChan chan sarama.ProducerMessage, signals chan os.Signal, wg *sync.WaitGroup) {
+func MonitorChan(transferChan chan sarama.ProducerMessage, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
-		if len(signals) > 0 {
-			log.Println("Monitor - Interrupt is detected - exiting")
-			return
-		}
 		log.Println("Transfer channel length: ", len(transferChan))
 		time.Sleep(10 * time.Second)
-	}
-}
-
-// CloseProducer Closes the producer
-func CloseProducer(producer *sarama.AsyncProducer) {
-	log.Println("Closing producer client")
-	if err := (*producer).Close(); err != nil {
-		// Should not reach here
-		log.Println(err)
-	}
-}
-
-// CloseConsumer closes the consumer
-func CloseConsumer(consumer *consumergroup.ConsumerGroup) {
-	log.Println("Closing consumer client")
-	if err := (*consumer).Close(); err != nil {
-		// Should not reach here
-		log.Println(err)
 	}
 }

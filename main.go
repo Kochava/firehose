@@ -17,101 +17,104 @@ package main
 import (
 	"log"
 	"os"
-	"os/signal"
+	"strconv"
 	"sync"
-	"syscall"
 
 	"github.com/Shopify/sarama"
+	"github.com/urfave/cli"
 )
 
-func main() {
+//NOTE :: Still using globals - blegh
 
-	config := InitConfig()
+//Conf is the Global config object
+var Conf Config //Access as global for easy flag config
 
-	config.GetConfig()
+func init() {
+	//Ensure config object has been created with empty value
+	Conf = Config{}
+}
 
-	logFile, err := os.OpenFile(config.firehoseLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalln("Failed to open log file:", err)
+func initLogging(c *cli.Context, conf *Config) {
+	if conf.STDOutLogging {
+		return // Essentially a noop to skip setting up the log file
 	}
-	defer logFile.Close()
+
+	logFile, err := os.Create(conf.LogFile)
+	if err != nil {
+		log.Printf("Unable to open log file: %s\n", err)
+		log.Println("Reverting to stdout logging")
+		return // log already goes to stdout so just early exit without calling log.SetOutput
+	}
 
 	log.SetOutput(logFile)
+}
 
-	metricsFile, err := os.OpenFile(config.metricsLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalln("Failed to open log file:", err)
-	}
-	defer metricsFile.Close()
-
-	log.Println("Getting the Kafka consumer")
-	consumer, err := GetKafkaConsumer(config, metricsFile)
-	if err != nil {
-		log.Fatalln("Unable to create consumer", err)
-	}
-
-	log.Println("Getting the Kafka producer")
-	producer, err := GetKafkaProducer(config, metricsFile)
-	if err != nil {
-		log.Fatalln("Unable to create producer", err)
-	}
-
-	defer CloseConsumer(consumer)
-	defer CloseProducer(&producer)
-
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+// Essentially main
+func startFirehose(c *cli.Context, conf *Config) error {
 
 	var wg sync.WaitGroup
-
-	configClient := NewClient(config)
-	defer configClient.Close()
-
 	transferChan := make(chan sarama.ProducerMessage, 100000)
 
-	log.Println(configClient.GetNumPartitions())
-	for partition := 0; partition < configClient.GetNumPartitions(); partition++ {
-
-		syncChan := make(chan int64, 1)
-		// offset := sarama.OffsetNewest
-		finalOffset := int64(-1)
-
-		// if config.historical {
-		// 	c := NewClient(config)
-		// 	offset, finalOffset = c.GetCustomOffset(lastFourHours)
-		// 	err := c.Close()
-		// 	if err != nil {
-		// 		log.Fatalln("Unable to close client. ", err)
-		// 	}
-		//
-		// }
-
-		// log.Println("Using offset ", offset, " for partition ", partition)
-		// partitionConsumer, err := consumer.ConsumePartition(config.topic, int32(partition), offset)
-		// if err != nil {
-		// 	// For now if we can create for this offset no use in trying again as it won't succeed.
-		// 	// need to find a better way to calculate time based offset.
-		// 	log.Println("Unable to create partition consumer", err)
-		// 	continue
-		// }
-
-		wg.Add(2)
-
-		go PullFromTopic(consumer, transferChan, signals, finalOffset, syncChan, &wg)
-		log.Println("Started consumer for partition ", partition)
-		go PullFromTopic(consumer, transferChan, signals, finalOffset, syncChan, &wg)
-		log.Println("Started consumer for partition ", partition)
-
-		wg.Add(1)
-		go PushToTopic(producer, transferChan, signals, syncChan, &wg)
-		log.Println("Started producer")
-		// go PushToTopic(producer, transferChan, signals, syncChan, &wg)
-		// log.Println("Started producer")
+	consumerConcurrency, err := strconv.Atoi(conf.ConsumerConcurrency)
+	if err != nil {
+		log.Printf("startFirehose - Error converting consumer concurrency %v\n", err)
+		consumerConcurrency = 4
 	}
 
-	go MonitorChan(transferChan, signals, &wg)
+	for i := 0; i < consumerConcurrency; i++ {
+		log.Println("Getting the Kafka consumer")
+		consumer, cErr := GetKafkaConsumer(conf)
+		if cErr != nil {
+			log.Println("startFirehose - Unable to create the consumer")
+			return cErr
+		}
+
+		log.Println("Starting error consumer")
+		go GetConsumerErrors(consumer)
+		defer consumer.Close()
+
+		wg.Add(1)
+		go PullFromTopic(consumer, transferChan, &wg)
+	}
+
+	producerConcurrency, err := strconv.Atoi(conf.ProducerConcurrency)
+	if err != nil {
+		log.Printf("startFirehose - Error converting producer concurrency %v\n", err)
+		producerConcurrency = 4
+	}
+
+	for i := 0; i < producerConcurrency; i++ {
+		log.Println("Getting the Kafka producer")
+		producer, err := GetKafkaProducer(conf)
+		if err != nil {
+			log.Println("startFirehose - Unable to create the producer")
+			return err
+		}
+		defer producer.Close()
+	}
+
+	wg.Add(1)
+	go MonitorChan(transferChan, &wg)
 
 	wg.Wait()
 
-	log.Println("All threads done, closing clients and ending")
+	return nil
+}
+
+func main() {
+	app := cli.NewApp()
+	app.Name = "Kochava Kafka Transfer Agent"
+	app.Usage = "An agent which consumes a topic from one set of brokers and publishes to another set of brokers"
+	app.Flags = AppConfigFlags //defined in flags.go
+	//Major, minor, patch version
+	app.Version = "0.1.0"
+	app.Action = func(c *cli.Context) error {
+		initLogging(c, &Conf)
+
+		if err := startFirehose(c, &Conf); err != nil {
+			log.Fatal(err)
+		}
+		return nil
+	}
+	app.Run(os.Args)
 }

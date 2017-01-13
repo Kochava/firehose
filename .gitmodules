@@ -7,3 +7,9 @@
 [submodule "vendor/github.com/wvanbergen/kafka"]
 	path = vendor/github.com/wvanbergen/kafka
 	url = https://github.com/wvanbergen/kafka
+[submodule "vendor/github.com/pierrec/xxHash"]
+	path = vendor/github.com/pierrec/xxHash
+	url = https://github.com/pierrec/xxHash
+[submodule "vendor/github.com/pierrec/lz4"]
+	path = vendor/github.com/pierrec/lz4
+	url = https://github.com/pierrec/lz4

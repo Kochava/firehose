@@ -13,3 +13,24 @@
 [submodule "vendor/github.com/pierrec/lz4"]
 	path = vendor/github.com/pierrec/lz4
 	url = https://github.com/pierrec/lz4
+[submodule "vendor/github.com/wvanbergen/kazoo-go"]
+	path = vendor/github.com/wvanbergen/kazoo-go
+	url = https://github.com/wvanbergen/kazoo-go
+[submodule "vendor/github.com/eapache/go-resiliency"]
+	path = vendor/github.com/eapache/go-resiliency
+	url = https://github.com/eapache/go-resiliency
+[submodule "vendor/github.com/eapache/go-xerial-snappy"]
+	path = vendor/github.com/eapache/go-xerial-snappy
+	url = https://github.com/eapache/go-xerial-snappy
+[submodule "vendor/github.com/eapache/queue"]
+	path = vendor/github.com/eapache/queue
+	url = https://github.com/eapache/queue
+[submodule "vendor/github.com/davecgh/go-spew"]
+	path = vendor/github.com/davecgh/go-spew
+	url = https://github.com/davecgh/go-spew
+[submodule "vendor/github.com/klauspost/crc32"]
+	path = vendor/github.com/klauspost/crc32
+	url = https://github.com/klauspost/crc32
+[submodule "vendor/github.com/rcrowley/go-metrics"]
+	path = vendor/github.com/rcrowley/go-metrics
+	url = https://github.com/rcrowley/go-metrics

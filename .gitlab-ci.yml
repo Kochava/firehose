@@ -41,8 +41,8 @@ vendor deps:
     paths: &submodule_paths
       - vendor
   script:
-    - go get github.com/Masterminds/glide
-    - glide --debug install
+    - git submodule init
+    - git submodule update
 run unit-tests:
   stage: test
   tags: *privileged_tags

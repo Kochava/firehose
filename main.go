@@ -91,6 +91,9 @@ func startFirehose(c *cli.Context, conf *Config) error {
 			return err
 		}
 		defer producer.Close()
+
+		wg.Add(1)
+		go PushToTopic(producer, transferChan, &wg)
 	}
 
 	wg.Add(1)

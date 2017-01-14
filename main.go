@@ -87,7 +87,7 @@ func startFirehose(c *cli.Context, conf *Config) error {
 		log.Println("Getting the Kafka producer")
 		producer, err := GetKafkaProducer(conf)
 		if err != nil {
-			log.Println("startFirehose - Unable to create the producer")
+			log.Printf("startFirehose - Unable to create the producer: %v\n", err)
 			return err
 		}
 		defer producer.Close()

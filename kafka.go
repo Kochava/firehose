@@ -135,11 +135,9 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMe
 		// case <-producer.Successes():
 		// 	success++
 		case consumerMsg := <-consumer:
-			partition, offset, err := producer.SendMessage(&consumerMsg)
+			_, _, err := producer.SendMessage(&consumerMsg)
 			if err != nil {
 				log.Printf("FAILED to send message: %s\n", err)
-			} else {
-				log.Printf("> message sent to partition %d at offset %d\n", partition, offset)
 			}
 		}
 	}

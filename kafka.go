@@ -60,6 +60,8 @@ func GetKafkaProducer(custConfig *Config) (sarama.SyncProducer, error) {
 
 	config.Config.Producer.Retry.Max = 1
 	config.Config.Producer.RequiredAcks = sarama.WaitForLocal
+	config.Config.Producer.Return.Successes = true
+	config.Config.Producer.Return.Errors = true
 	// config.Producer.Partitioner = sarama.NewManualPartitioner
 	config.Config.ClientID = "firehose_realtime"
 

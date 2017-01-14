@@ -130,10 +130,10 @@ func PushToTopic(producer sarama.AsyncProducer, consumer <-chan sarama.ProducerM
 
 	for {
 		select {
-		case consumerMsg := <-consumer:
-			producer.Input() <- &consumerMsg
 		case err := <-producer.Errors():
 			log.Println("Failed to produce message", err)
+		case consumerMsg := <-consumer:
+			producer.Input() <- &consumerMsg
 		}
 	}
 }

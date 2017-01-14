@@ -55,13 +55,11 @@ func GetConsumerErrors(consumer *consumergroup.ConsumerGroup) {
 }
 
 // GetKafkaProducer returns a new consumer
-func GetKafkaProducer(custConfig *Config) (sarama.AsyncProducer, error) {
+func GetKafkaProducer(custConfig *Config) (sarama.SyncProducer, error) {
 	config := consumergroup.NewConfig()
 
 	config.Config.Producer.Retry.Max = 1
-	config.Config.Producer.RequiredAcks = sarama.WaitForAll
-	config.Config.Producer.Return.Errors = true
-	config.Config.Producer.Return.Successes = true
+	config.Config.Producer.RequiredAcks = sarama.WaitForLocal
 	// config.Producer.Partitioner = sarama.NewManualPartitioner
 	config.Config.ClientID = "firehose_realtime"
 
@@ -81,7 +79,7 @@ func GetKafkaProducer(custConfig *Config) (sarama.AsyncProducer, error) {
 		return nil, err
 	}
 
-	return sarama.NewAsyncProducer(brokerList, config.Config)
+	return sarama.NewSyncProducer(brokerList, config.Config)
 }
 
 // PullFromTopic pulls messages from the topic partition
@@ -125,19 +123,22 @@ func PullFromTopic(consumer *consumergroup.ConsumerGroup, producer chan<- sarama
 }
 
 // PushToTopic pushes messages to topic
-func PushToTopic(producer sarama.AsyncProducer, consumer <-chan sarama.ProducerMessage, wg *sync.WaitGroup) {
+func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMessage, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	success := 1
 
 	for {
 		select {
-		case err := <-producer.Errors():
-			log.Println("Failed to produce message", err)
-		case <-producer.Successes():
-			success++
+		// case err := <-producer.Errors():
+		// 	log.Println("Failed to produce message", err)
+		// case <-producer.Successes():
+		// 	success++
 		case consumerMsg := <-consumer:
-			producer.Input() <- &consumerMsg
+			partition, offset, err := producer.SendMessage(&consumerMsg)
+			if err != nil {
+				log.Printf("FAILED to send message: %s\n", err)
+			} else {
+				log.Printf("> message sent to partition %d at offset %d\n", partition, offset)
+			}
 		}
 	}
 }

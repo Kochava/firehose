@@ -58,12 +58,12 @@ func GetConsumerErrors(consumer *consumergroup.ConsumerGroup) {
 func GetKafkaProducer(custConfig *Config) (sarama.AsyncProducer, error) {
 	config := consumergroup.NewConfig()
 
-	config.Config.Producer.Retry.Max = 5
-	config.Config.Producer.RequiredAcks = sarama.WaitForLocal
+	config.Config.Producer.Retry.Max = 1
+	config.Config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Config.Producer.Return.Errors = true
-	config.Config.Producer.Return.Successes = false
+	config.Config.Producer.Return.Successes = true
 	// config.Producer.Partitioner = sarama.NewManualPartitioner
-	config.Config.ClientID = "firehose"
+	config.Config.ClientID = "firehose_realtime"
 
 	log.Printf("GetKafkaProducer - client id %v\n", config.Config.ClientID)
 
@@ -128,10 +128,14 @@ func PullFromTopic(consumer *consumergroup.ConsumerGroup, producer chan<- sarama
 func PushToTopic(producer sarama.AsyncProducer, consumer <-chan sarama.ProducerMessage, wg *sync.WaitGroup) {
 	defer wg.Done()
 
+	success := 1
+
 	for {
 		select {
 		case err := <-producer.Errors():
 			log.Println("Failed to produce message", err)
+		case <-producer.Successes():
+			success++
 		case consumerMsg := <-consumer:
 			producer.Input() <- &consumerMsg
 		}

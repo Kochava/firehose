@@ -16,50 +16,70 @@ package main
 
 import (
 	"log"
+	"os"
 	"sync"
 
 	"git.dev.kochava.com/jbury/firehose/cmd/internal/kafka"
-	"github.com/Shopify/sarama"
 	"github.com/urfave/cli"
 )
 
 // Essentially main
 func startFirehose(c *cli.Context, conf *Config) error {
 
+	signals := make(chan os.Signal, 10)
+	transferChan := kafka.GetTransferChan(100000)
 	var wg sync.WaitGroup
-	transferChan := make(chan sarama.ProducerMessage, 100000)
 
 	for i := 0; i < conf.ConsumerConcurrency; i++ {
-		log.Println("Getting the Kafka consumer")
-		consumer, cErr := kafka.GetKafkaConsumer(conf.SourceZookeepers, conf.Topic)
-		if cErr != nil {
+		var err error
+		kafkaClient, err := kafka.InitKafka(conf.Topic, conf.SourceZookeepers, 100000, signals, &wg)
+		if err != nil {
+			log.Println("startFirehose - Unable to create the kafka consumer client")
+			return err
+		}
+
+		log.Println("Initializing the Kafka consumer")
+		err = kafkaClient.InitConsumer(transferChan)
+		if err != nil {
 			log.Println("startFirehose - Unable to create the consumer")
-			return cErr
+			return err
 		}
 
 		log.Println("Starting error consumer")
-		go kafka.GetConsumerErrors(consumer)
-		defer consumer.Close()
+		go kafkaClient.GetConsumerErrors()
+		defer kafkaClient.Consumer.Close()
 
-		wg.Add(1)
-		go kafka.PullFromTopic(consumer, transferChan, &wg)
+		log.Println("Starting consumer")
+		kafkaClient.WaitGroup.Add(1)
+		go kafkaClient.Pull()
+
+		log.Println("Starting consumer monitor thread")
+		go kafkaClient.Monitor()
 	}
 
 	for i := 0; i < conf.ProducerConcurrency; i++ {
-		log.Println("Getting the Kafka producer")
-		producer, err := kafka.GetKafkaProducer(conf.DestinationZookeepers)
+		var err error
+		kafkaClient, err := kafka.InitKafka(conf.Topic, conf.DestinationZookeepers, 100000, signals, &wg)
+		if err != nil {
+			log.Println("startFirehose - Unable to create the kafka producer client")
+			return err
+		}
+
+		log.Println("Initializing the Kafka producer")
+		err = kafkaClient.InitProducerFromConsumer(transferChan)
 		if err != nil {
 			log.Printf("startFirehose - Unable to create the producer: %v\n", err)
 			return err
 		}
-		defer producer.Close()
+		defer kafkaClient.Producer.Close()
 
-		wg.Add(1)
-		go kafka.PushToTopic(producer, transferChan, &wg)
+		log.Println("Starting Producer")
+		kafkaClient.WaitGroup.Add(1)
+		go kafkaClient.Push()
+
+		log.Println("Starting producer monitor thread")
+		go kafkaClient.Monitor()
 	}
-
-	wg.Add(1)
-	go kafka.MonitorChan(transferChan, []string{conf.SourceKafkaBroker}, conf.SourceZookeepers, conf.Topic, &wg)
 
 	wg.Wait()
 

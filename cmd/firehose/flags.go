@@ -18,20 +18,6 @@ import "github.com/urfave/cli"
 
 //AppConfigFlags defines all of the Application Config Flags
 var AppConfigFlags = []cli.Flag{
-	// cli.StringFlag{
-	// 	Name:        "src-zookeepers",
-	// 	Value:       "localhost:2181", //Default value
-	// 	Usage:       "Comma delimited list of zookeeper nodes to connect to for the source brokers",
-	// 	EnvVar:      "SRC_ZOOKEEPERS",
-	// 	Destination: &Conf.SourceZookeepers,
-	// },
-	// cli.StringFlag{
-	// 	Name:        "dst-zookeepers",
-	// 	Value:       "localhost:2181", //Default value
-	// 	Usage:       "Comma delimited list of zookeeper nodes to connect to for the destination brokers",
-	// 	EnvVar:      "DST_ZOOKEEPERS",
-	// 	Destination: &Conf.DestinationZookeepers,
-	// },
 	cli.StringSliceFlag{
 		Name:   "src-zookeepers",
 		Value:  &cli.StringSlice{}, //Default value

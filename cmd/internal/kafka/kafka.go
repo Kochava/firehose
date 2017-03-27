@@ -15,8 +15,11 @@
 package kafka
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -24,192 +27,218 @@ import (
 	"github.com/wvanbergen/kazoo-go"
 )
 
-// GetKafkaConsumer returns a new consumer
-func GetKafkaConsumer(srcZookeepers []string, topic string) (*consumergroup.ConsumerGroup, error) {
+// Kafka object that provides nice helper functions
+type Kafka struct {
+	// Config
+	Topic             string
+	Zookeepers        []string
+	Brokers           []string
+	ConsumerGroupName string
+
+	// Kafka stuff
+	Producer sarama.AsyncProducer
+	Consumer *consumergroup.ConsumerGroup
+
+	ProducerChan chan *sarama.ProducerMessage
+	TransferChan chan *sarama.ProducerMessage
+
+	// internal kafka stuff
+	kzClient                  *kazoo.Kazoo
+	kzConsumerGroup           *kazoo.Consumergroup
+	kafkaClient               sarama.Client
+	kafkaConfig               *consumergroup.Config
+	kafkaConsumerTransactions uint64
+	kafkaProducerTransactions uint64
+	consumerBuffer            int
+
+	// other stuff
+	WaitGroup  *sync.WaitGroup
+	SignalChan chan os.Signal
+}
+
+// InitKafka initializes the Kafka object creating some helper clients
+func InitKafka(topic string, zookeepers []string, consumerBuffer int, signalChan chan os.Signal, wg *sync.WaitGroup) (*Kafka, error) {
+	var err error
+	kafka := &Kafka{
+		Topic:             topic,
+		Zookeepers:        zookeepers,
+		ConsumerGroupName: fmt.Sprintf("%s_firehose", topic),
+		consumerBuffer:    consumerBuffer,
+		SignalChan:        signalChan,
+		WaitGroup:         wg,
+	}
+
+	kafka.kafkaConfig = consumergroup.NewConfig()
+
+	kafka.kafkaConfig.Config.Producer.Retry.Max = 1
+	kafka.kafkaConfig.Config.Producer.RequiredAcks = sarama.WaitForLocal
+	kafka.kafkaConfig.Producer.Partitioner = sarama.NewRoundRobinPartitioner
+	kafka.kafkaConfig.Config.Producer.Return.Successes = true
+	kafka.kafkaConfig.Config.Producer.Return.Errors = true
+	kafka.kafkaConfig.Config.ClientID = "firehose_realtime"
+
+	log.Printf("GetKafkaProducer - client id %v\n", kafka.kafkaConfig.Config.ClientID)
+
+	kafka.kzClient, err = kazoo.NewKazoo(zookeepers, kafka.kafkaConfig.Zookeeper)
+	if err != nil {
+		log.Printf("InitKafka - Unable to initialize kazoo client: %v", err)
+		return nil, err
+	}
+
+	kafka.Brokers, err = kafka.kzClient.BrokerList()
+	if err != nil {
+		log.Printf("InitKafka - Unable to get list of brokers: %v", err)
+		return nil, err
+	}
+
+	kafka.kafkaClient, err = sarama.NewClient(kafka.Brokers, nil) // this will just be used for grabbing config so no reason to give conf
+	if err != nil {
+		log.Printf("InitKafka - Unable to create kafka client: %v", err)
+		return nil, err
+	}
+
+	kafka.kzConsumerGroup = kafka.kzClient.Consumergroup(kafka.ConsumerGroupName)
+
+	atomic.StoreUint64(&kafka.kafkaConsumerTransactions, 0)
+	atomic.StoreUint64(&kafka.kafkaProducerTransactions, 0)
+
+	return kafka, err
+}
+
+// GetTransferChan returns a transfer channel that can be used to pass messages around
+func GetTransferChan(consumerBuffer int) chan *sarama.ProducerMessage {
+	return make(chan *sarama.ProducerMessage, consumerBuffer)
+}
+
+// InitConsumer sets up the consumer for kafka
+func (k *Kafka) InitConsumer(transferChan chan *sarama.ProducerMessage) error {
+	var err error
 	groupConfig := consumergroup.NewConfig()
 	groupConfig.Offsets.Initial = sarama.OffsetNewest
 	groupConfig.Offsets.ProcessingTimeout = 10 * time.Second
 
-	zookeeperNodes := srcZookeepers
 	groupConfig.Zookeeper.Chroot = ""
 
-	topicSlice := []string{topic}
+	topicSlice := []string{k.Topic}
 
-	consumer, err := consumergroup.JoinConsumerGroup("firehose", topicSlice, zookeeperNodes, groupConfig)
+	k.Consumer, err = consumergroup.JoinConsumerGroup(k.ConsumerGroupName, topicSlice, k.Zookeepers, groupConfig)
 	if err != nil {
-		log.Printf("GetKafkaConsumer - Failed to join consumer group: %v\n", err)
-		return nil, err
+		log.Printf("InitConsumer - Failed to join consumer group: %v\n", err)
+		return err
 	}
 
-	// Create new consumer
-	return consumer, nil
+	k.TransferChan = transferChan
 
+	// Return err (should be nil if there was no err)
+	return err
 }
 
 // GetConsumerErrors logs any consumer errors
-func GetConsumerErrors(consumer *consumergroup.ConsumerGroup) {
-	for err := range consumer.Errors() {
+func (k *Kafka) GetConsumerErrors() {
+	for err := range k.Consumer.Errors() {
 		log.Printf("GetConsumerErrors - %v\n", err)
 	}
 }
 
-// GetKafkaProducer returns a new consumer
-func GetKafkaProducer(dstZookeepers []string) (sarama.SyncProducer, error) {
-	config := consumergroup.NewConfig()
+// InitProducerFromConsumer sets up the producer for kafka using a consumer channel as input
+func (k *Kafka) InitProducerFromConsumer(transferChan chan *sarama.ProducerMessage) error {
+	var err error
 
-	config.Config.Producer.Retry.Max = 1
-	config.Config.Producer.RequiredAcks = sarama.WaitForLocal
-	config.Config.Producer.Return.Successes = true
-	config.Config.Producer.Return.Errors = true
-	// config.Producer.Partitioner = sarama.NewManualPartitioner
-	config.Config.ClientID = "firehose_realtime"
+	k.TransferChan = transferChan
 
-	log.Printf("GetKafkaProducer - client id %v\n", config.Config.ClientID)
-
-	zookeepers := dstZookeepers
-	kz, err := kazoo.NewKazoo(zookeepers, config.Zookeeper)
+	k.Producer, err = sarama.NewAsyncProducer(k.Brokers, k.kafkaConfig.Config)
 	if err != nil {
-		log.Printf("GetKafkaProducer - Unable to create zookeeper object: %v\n", err)
-		return nil, err
+		log.Printf("InitConsumer - Failed to create producer: %v\n", err)
+		return err
 	}
 
-	// Create new consumer
-	brokerList, bErr := kz.BrokerList()
-	if bErr != nil {
-		log.Printf("GetKafkaProducer - Unable to get broker list: %v\n", err)
-		return nil, err
-	}
-
-	return sarama.NewSyncProducer(brokerList, config.Config)
+	return err
 }
 
-// PullFromTopic pulls messages from the topic partition
-func PullFromTopic(consumer *consumergroup.ConsumerGroup, producer chan<- sarama.ProducerMessage, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	eventCount := 0
-	offsets := make(map[string]map[int32]int64)
-
-	for message := range consumer.Messages() {
-		if offsets[message.Topic] == nil {
-			offsets[message.Topic] = make(map[int32]int64)
-		}
-
-		eventCount++
-		if offsets[message.Topic][message.Partition] != 0 && offsets[message.Topic][message.Partition] != message.Offset-1 {
-			log.Printf("PullFromTopic - Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n", message.Topic, message.Partition, offsets[message.Topic][message.Partition]+1, message.Offset, message.Offset-offsets[message.Topic][message.Partition]+1)
-		}
-
-		producerMsg := sarama.ProducerMessage{
-			Topic: message.Topic,
-			Key:   sarama.StringEncoder(message.Key),
-			Value: sarama.StringEncoder(message.Value),
-		}
-		producer <- producerMsg
-
-		log.Printf("PullFromTopic - got offset %v on partition %v", message.Offset, message.Partition)
-
-		offsets[message.Topic][message.Partition] = message.Offset
-		consumer.CommitUpto(message)
-	}
-
-	// for consumerMsg := range consumer.Messages() {
-	// 	log.Println("got message")
-	// 	producerMsg := sarama.ProducerMessage{
-	// 		Topic: consumerMsg.Topic,
-	// 		Key:   sarama.StringEncoder(consumerMsg.Key),
-	// 		Value: sarama.StringEncoder(consumerMsg.Value),
-	// 	}
-	// 	producer <- producerMsg
-	// 	consumer.CommitUpto(consumerMsg)
-	// }
-	// 	// for {
-	// 	// 	if len(signals) > 0 {
-	// 	// 		log.Println("Consumer - Interrupt is detected - exiting")
-	// 	// 		return
-	// 	// 	}
-	// 	// 	select {
-	// 	// 	case err := <-consumer.Errors():
-	// 	// 		log.Println(err)
-	// 	// 		return
-	// 	// 	case consumerMsg := <-consumer.Messages():
-	// 	// 		producerMsg := sarama.ProducerMessage{
-	// 	// 			Topic:     consumerMsg.Topic,
-	// 	// 			Partition: consumerMsg.Partition,
-	// 	// 			Key:       sarama.StringEncoder(consumerMsg.Key),
-	// 	// 			Value:     sarama.StringEncoder(consumerMsg.Value),
-	// 	// 		}
-	// 	//
-	// 	//
-	// 	// 		if finalOffset > 0 && consumerMsg.Offset >= finalOffset {
-	// 	// 			syncChan <- consumerMsg.Offset
-	// 	// 			log.Println("Consumer - partition ", consumerMsg.Partition, " reached final offset, shutting down partition")
-	// 	// 			return
-	// 	// 		}
-	// 	// 	}
-	// 	// }
-}
-
-// PushToTopic pushes messages to topic
-func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMessage, wg *sync.WaitGroup) {
-	defer wg.Done()
+// Pull pulls messages from the topic partition
+func (k *Kafka) Pull() {
+	defer k.WaitGroup.Done()
 
 	for {
 		select {
-		// case err := <-producer.Errors():
-		// 	log.Println("Failed to produce message", err)
-		// case <-producer.Successes():
-		// 	success++
-		case consumerMsg := <-consumer:
-			_, _, err := producer.SendMessage(&consumerMsg)
-			if err != nil {
-				log.Printf("PushToTopic - FAILED to send message: %s\n", err)
+		case sig := <-k.SignalChan:
+			k.SignalChan <- sig
+			return
+		case msg := <-k.Consumer.Messages():
+			producerMsg := &sarama.ProducerMessage{
+				Topic: msg.Topic,
+				Key:   sarama.StringEncoder(msg.Key),
+				Value: sarama.StringEncoder(msg.Value),
+			}
+			k.TransferChan <- producerMsg
+
+			atomic.AddUint64(&k.kafkaConsumerTransactions, 1)
+
+			k.Consumer.CommitUpto(msg)
+		}
+	}
+
+}
+
+// Push pushes messages to topic
+func (k *Kafka) Push() {
+	defer k.WaitGroup.Done()
+
+	for {
+		select {
+		case sig := <-k.SignalChan:
+			k.SignalChan <- sig
+			if len(k.TransferChan) == 0 {
+				return
+			}
+		case err := <-k.Producer.Errors():
+			log.Println("Failed to produce message to kafka cluster. ", err)
+			return
+		case <-k.Producer.Successes():
+			atomic.AddUint64(&k.kafkaProducerTransactions, 1)
+		case msg := <-k.TransferChan:
+			select {
+			case k.Producer.Input() <- msg:
+			default:
+				k.TransferChan <- msg
 			}
 		}
 	}
 }
 
-// MonitorChan monitors the transfer channel
-func MonitorChan(transferChan chan sarama.ProducerMessage, brokers []string, srcZookeeper []string, topic string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	kafkaClient, err := sarama.NewClient(brokers, nil) // I am not giving any configuration
-	if err != nil {
-		log.Printf("MonitorChan - %v", err)
-		return
-	}
-
-	kz, err := kazoo.NewKazoo(srcZookeeper, nil)
-	if err != nil {
-		log.Printf("MonitorChan - %v", err)
-		return
-	}
-
-	consumerGroup := kz.Consumergroup("firehose")
-
+// Monitor monitors the transfer channel
+func (k *Kafka) Monitor() {
 	var partitionDiff int64
 	for {
-		partitions, err := kafkaClient.Partitions(topic)
-		if err != nil {
-			log.Printf("MonitorChan - %v", err)
-		}
-
-		log.Println("==============================")
-		log.Println("=         Monitoring         =")
-		log.Println("==============================")
-
-		for _, p := range partitions {
-			lastoffset, err := kafkaClient.GetOffset(topic, p, sarama.OffsetNewest)
-			zkOffset, _ := consumerGroup.FetchOffset(topic, p)
+		if k.Consumer != nil {
+			partitions, err := k.kafkaClient.Partitions(k.Topic)
 			if err != nil {
 				log.Printf("MonitorChan - %v", err)
 			}
-			log.Printf("MonitorChan - Partition %v Kafka Offset %v Zookeeper Offset %v", p, lastoffset, zkOffset)
 
-			partitionDiff += (lastoffset - (zkOffset))
+			for _, p := range partitions {
+				lastoffset, err := k.kafkaClient.GetOffset(k.Topic, p, sarama.OffsetNewest)
+				zkOffset, _ := k.kzConsumerGroup.FetchOffset(k.Topic, p)
+				if err != nil {
+					log.Printf("MonitorChan - %v", err)
+				}
+				// log.Printf("MonitorChan - Consumer - Partition %v Kafka Offset %v Zookeeper Offset %v", p, lastoffset, zkOffset)
+
+				partitionDiff += (lastoffset - (zkOffset))
+			}
+
+			log.Printf("MonitorChan - Consumer - Avg partition diff %v", (partitionDiff / int64(len(partitions))))
+			log.Printf("MonitorChan - Consumer - RPS %v", atomic.LoadUint64(&k.kafkaConsumerTransactions))
+			partitionDiff = 0
+		}
+		if k.Producer != nil {
+			log.Printf("MonitorChan - Producer RPS %v", atomic.LoadUint64(&k.kafkaProducerTransactions))
 		}
 
-		log.Printf("MonitorChan - Avg partition diff %v", (partitionDiff / int64(len(partitions))))
-		partitionDiff = 0
-		time.Sleep(1 * time.Minute)
+		log.Printf("MonitorChan - Transfer Channel length %v", len(k.TransferChan))
+
+		atomic.StoreUint64(&k.kafkaConsumerTransactions, 0)
+		atomic.StoreUint64(&k.kafkaProducerTransactions, 0)
+		time.Sleep(1 * time.Second)
 	}
 }

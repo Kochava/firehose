@@ -203,12 +203,13 @@ func MonitorChan(transferChan chan sarama.ProducerMessage, brokers []string, src
 			if err != nil {
 				log.Printf("MonitorChan - %v", err)
 			}
-			log.Printf("MonitorChan - Partition %v Kafka Offset %v Zookeeper Offset %v", p, lastoffset, zkOffset+1)
+			log.Printf("MonitorChan - Partition %v Kafka Offset %v Zookeeper Offset %v", p, lastoffset, zkOffset)
 
-			partitionDiff += (lastoffset - (zkOffset + 1))
+			partitionDiff += (lastoffset - (zkOffset))
 		}
 
 		log.Printf("MonitorChan - Avg partition diff %v", (partitionDiff / int64(len(partitions))))
+		partitionDiff = 0
 		time.Sleep(1 * time.Minute)
 	}
 }

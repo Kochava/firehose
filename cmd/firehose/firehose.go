@@ -59,7 +59,7 @@ func startFirehose(c *cli.Context, conf *Config) error {
 	}
 
 	wg.Add(1)
-	go kafka.MonitorChan(transferChan, []string{conf.SourceKafkaBroker}, conf.Topic, &wg)
+	go kafka.MonitorChan(transferChan, []string{conf.SourceKafkaBroker}, conf.SourceZookeepers, conf.Topic, &wg)
 
 	wg.Wait()
 

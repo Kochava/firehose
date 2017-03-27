@@ -170,16 +170,25 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMe
 }
 
 // MonitorChan monitors the transfer channel
-func MonitorChan(transferChan chan sarama.ProducerMessage, brokers []string, topic string, wg *sync.WaitGroup) {
+func MonitorChan(transferChan chan sarama.ProducerMessage, brokers []string, srcZookeeper []string, topic string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	client, err := sarama.NewClient(brokers, nil) // I am not giving any configuration
+	kafkaClient, err := sarama.NewClient(brokers, nil) // I am not giving any configuration
 	if err != nil {
 		log.Printf("MonitorChan - %v", err)
 		return
 	}
 
+	kz, err := kazoo.NewKazoo(srcZookeeper, nil)
+	if err != nil {
+		log.Printf("MonitorChan - %v", err)
+		return
+	}
+
+	consumerGroup := kz.Consumergroup("firehose")
+
+	var partitionDiff int64
 	for {
-		partitions, err := client.Partitions(topic)
+		partitions, err := kafkaClient.Partitions(topic)
 		if err != nil {
 			log.Printf("MonitorChan - %v", err)
 		}
@@ -187,13 +196,19 @@ func MonitorChan(transferChan chan sarama.ProducerMessage, brokers []string, top
 		log.Println("==============================")
 		log.Println("=         Monitoring         =")
 		log.Println("==============================")
+
 		for _, p := range partitions {
-			lastoffset, err := client.GetOffset(topic, p, sarama.OffsetNewest)
+			lastoffset, err := kafkaClient.GetOffset(topic, p, sarama.OffsetNewest)
+			zkOffset, _ := consumerGroup.FetchOffset(topic, p)
 			if err != nil {
 				log.Printf("MonitorChan - %v", err)
 			}
-			log.Printf("Partition %v Last Commited Offset %v", p, lastoffset)
+			log.Printf("MonitorChan - Partition %v Kafka Offset %v Zookeeper Offset %v", p, lastoffset, zkOffset+1)
+
+			partitionDiff += (lastoffset - (zkOffset + 1))
 		}
-		time.Sleep(10 * time.Second)
+
+		log.Printf("MonitorChan - Avg partition diff %v", (partitionDiff / int64(len(partitions))))
+		time.Sleep(1 * time.Minute)
 	}
 }

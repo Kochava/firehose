@@ -37,7 +37,9 @@ services:
       - "8090"
       - "8099"
     environment:
+      - ADMIN_USER="firehose"
       - PRE_CREATE_DB="firehose"
+      - INFLUXDB_INIT_PWD="firehose"
   grafana:
     image: grafana/grafana
     ports:

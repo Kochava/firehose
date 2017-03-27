@@ -19,7 +19,7 @@ import (
 	"os"
 	"sync"
 
-	"git.dev.kochava.com/jbury/firehose/cmd/internal/kafka"
+	"github.com/Kochava/firehose/cmd/internal/kafka"
 	"github.com/urfave/cli"
 )
 

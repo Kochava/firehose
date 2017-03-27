@@ -11,7 +11,7 @@ services:
     environment:
       KAFKA_ADVERTISED_HOST_NAME: 10.0.1.132
       KAFKA_ZOOKEEPER_CONNECT: zookeeper_src:2181
-      KAFKA_CREATE_TOPICS: "kbar:24:1"
+      KAFKA_CREATE_TOPICS: "firehose:24:1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
   zookeeper_dst:
@@ -25,6 +25,22 @@ services:
     environment:
       KAFKA_ADVERTISED_HOST_NAME: 10.0.1.132
       KAFKA_ZOOKEEPER_CONNECT: zookeeper_dst:2181
-      KAFKA_CREATE_TOPICS: "kbar:24:1"
+      KAFKA_CREATE_TOPICS: "firehose:24:1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+  influxdb:
+    image: tutum/influxdb
+    ports:
+      - "8083:8083"
+      - "8086:8086"
+    expose:
+      - "8090"
+      - "8099"
+    environment:
+      - PRE_CREATE_DB="firehose"
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    links:
+      - influxdb

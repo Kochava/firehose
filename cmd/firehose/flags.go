@@ -18,19 +18,38 @@ import "github.com/urfave/cli"
 
 //AppConfigFlags defines all of the Application Config Flags
 var AppConfigFlags = []cli.Flag{
-	cli.StringFlag{
-		Name:        "src-zookeepers",
-		Value:       "localhost:2181", //Default value
-		Usage:       "Comma delimited list of zookeeper nodes to connect to for the source brokers",
-		EnvVar:      "SRC_ZOOKEEPERS",
-		Destination: &Conf.SourceZookeepers,
+	// cli.StringFlag{
+	// 	Name:        "src-zookeepers",
+	// 	Value:       "localhost:2181", //Default value
+	// 	Usage:       "Comma delimited list of zookeeper nodes to connect to for the source brokers",
+	// 	EnvVar:      "SRC_ZOOKEEPERS",
+	// 	Destination: &Conf.SourceZookeepers,
+	// },
+	// cli.StringFlag{
+	// 	Name:        "dst-zookeepers",
+	// 	Value:       "localhost:2181", //Default value
+	// 	Usage:       "Comma delimited list of zookeeper nodes to connect to for the destination brokers",
+	// 	EnvVar:      "DST_ZOOKEEPERS",
+	// 	Destination: &Conf.DestinationZookeepers,
+	// },
+	cli.StringSliceFlag{
+		Name:   "src-zookeepers",
+		Value:  &cli.StringSlice{}, //Default value
+		Usage:  "Comma delimited list of zookeeper nodes to connect to for the source brokers",
+		EnvVar: "SRC_ZOOKEEPERS",
+	},
+	cli.StringSliceFlag{
+		Name:   "dst-zookeepers",
+		Value:  &cli.StringSlice{}, //Default value
+		Usage:  "Comma delimited list of zookeeper nodes to connect to for the destination brokers",
+		EnvVar: "DST_ZOOKEEPERS",
 	},
 	cli.StringFlag{
-		Name:        "dst-zookeepers",
-		Value:       "localhost:2181", //Default value
-		Usage:       "Comma delimited list of zookeeper nodes to connect to for the destination brokers",
-		EnvVar:      "DST_ZOOKEEPERS",
-		Destination: &Conf.DestinationZookeepers,
+		Name:        "src-kafka-broker",
+		Value:       "localhost:9092", //Default value
+		Usage:       "One of the source brokers to connect to",
+		EnvVar:      "SRC_KAFKA_BROKER",
+		Destination: &Conf.SourceKafkaBroker,
 	},
 	cli.StringFlag{
 		Name:        "topic",
@@ -46,16 +65,16 @@ var AppConfigFlags = []cli.Flag{
 		EnvVar:      "FIREHOSE_LOG_FILE",
 		Destination: &Conf.LogFile,
 	},
-	cli.StringFlag{
+	cli.IntFlag{
 		Name:        "consumer-concurrency",
-		Value:       "4", //Default value
+		Value:       4, //Default value
 		Usage:       "Number of consumer threads to run",
 		EnvVar:      "CONSUMER_CONCURRENCY",
 		Destination: &Conf.ConsumerConcurrency,
 	},
-	cli.StringFlag{
+	cli.IntFlag{
 		Name:        "producer-concurrency",
-		Value:       "4", //Default value
+		Value:       4, //Default value
 		Usage:       "Number of producer threads to run",
 		EnvVar:      "PRODUCER_CONCURRENCY",
 		Destination: &Conf.ProducerConcurrency,

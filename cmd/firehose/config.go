@@ -16,11 +16,12 @@ package main
 
 // Config Contains all the values needed for firehose
 type Config struct {
-	SourceZookeepers      string
-	DestinationZookeepers string
+	SourceZookeepers      []string
+	DestinationZookeepers []string
+	SourceKafkaBroker     string
 	Topic                 string
 	LogFile               string
-	ConsumerConcurrency   string
-	ProducerConcurrency   string
+	ConsumerConcurrency   int
+	ProducerConcurrency   int
 	STDOutLogging         bool
 }

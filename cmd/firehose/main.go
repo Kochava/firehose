@@ -17,10 +17,7 @@ package main
 import (
 	"log"
 	"os"
-	"strconv"
-	"sync"
 
-	"github.com/Shopify/sarama"
 	"github.com/urfave/cli"
 )
 
@@ -35,6 +32,8 @@ func init() {
 }
 
 func initLogging(c *cli.Context, conf *Config) {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	if conf.STDOutLogging {
 		return // Essentially a noop to skip setting up the log file
 	}
@@ -49,61 +48,6 @@ func initLogging(c *cli.Context, conf *Config) {
 	log.SetOutput(logFile)
 }
 
-// Essentially main
-func startFirehose(c *cli.Context, conf *Config) error {
-
-	var wg sync.WaitGroup
-	transferChan := make(chan sarama.ProducerMessage, 100000)
-
-	consumerConcurrency, err := strconv.Atoi(conf.ConsumerConcurrency)
-	if err != nil {
-		log.Printf("startFirehose - Error converting consumer concurrency %v\n", err)
-		consumerConcurrency = 4
-	}
-
-	for i := 0; i < consumerConcurrency; i++ {
-		log.Println("Getting the Kafka consumer")
-		consumer, cErr := GetKafkaConsumer(conf)
-		if cErr != nil {
-			log.Println("startFirehose - Unable to create the consumer")
-			return cErr
-		}
-
-		log.Println("Starting error consumer")
-		go GetConsumerErrors(consumer)
-		defer consumer.Close()
-
-		wg.Add(1)
-		go PullFromTopic(consumer, transferChan, &wg)
-	}
-
-	producerConcurrency, err := strconv.Atoi(conf.ProducerConcurrency)
-	if err != nil {
-		log.Printf("startFirehose - Error converting producer concurrency %v\n", err)
-		producerConcurrency = 4
-	}
-
-	for i := 0; i < producerConcurrency; i++ {
-		log.Println("Getting the Kafka producer")
-		producer, err := GetKafkaProducer(conf)
-		if err != nil {
-			log.Printf("startFirehose - Unable to create the producer: %v\n", err)
-			return err
-		}
-		defer producer.Close()
-
-		wg.Add(1)
-		go PushToTopic(producer, transferChan, &wg)
-	}
-
-	wg.Add(1)
-	go MonitorChan(transferChan, &wg)
-
-	wg.Wait()
-
-	return nil
-}
-
 func main() {
 	app := cli.NewApp()
 	app.Name = "Kochava Kafka Transfer Agent"
@@ -113,6 +57,9 @@ func main() {
 	app.Version = "0.1.0"
 	app.Action = func(c *cli.Context) error {
 		initLogging(c, &Conf)
+
+		Conf.SourceZookeepers = c.StringSlice("src-zookeepers")
+		Conf.DestinationZookeepers = c.StringSlice("dst-zookeepers")
 
 		if err := startFirehose(c, &Conf); err != nil {
 			log.Fatal(err)

@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package kafka
 
 import (
 	"log"
-	"strings"
 	"sync"
 	"time"
 
@@ -26,17 +25,17 @@ import (
 )
 
 // GetKafkaConsumer returns a new consumer
-func GetKafkaConsumer(custConfig *Config) (*consumergroup.ConsumerGroup, error) {
+func GetKafkaConsumer(srcZookeepers []string, topic string) (*consumergroup.ConsumerGroup, error) {
 	groupConfig := consumergroup.NewConfig()
 	groupConfig.Offsets.Initial = sarama.OffsetNewest
 	groupConfig.Offsets.ProcessingTimeout = 10 * time.Second
 
-	zookeeperNodes := strings.Split(custConfig.SourceZookeepers, ",")
+	zookeeperNodes := srcZookeepers
 	groupConfig.Zookeeper.Chroot = ""
 
-	topic := []string{custConfig.Topic}
+	topicSlice := []string{topic}
 
-	consumer, err := consumergroup.JoinConsumerGroup("firehose", topic, zookeeperNodes, groupConfig)
+	consumer, err := consumergroup.JoinConsumerGroup("firehose", topicSlice, zookeeperNodes, groupConfig)
 	if err != nil {
 		log.Printf("GetKafkaConsumer - Failed to join consumer group: %v\n", err)
 		return nil, err
@@ -55,7 +54,7 @@ func GetConsumerErrors(consumer *consumergroup.ConsumerGroup) {
 }
 
 // GetKafkaProducer returns a new consumer
-func GetKafkaProducer(custConfig *Config) (sarama.SyncProducer, error) {
+func GetKafkaProducer(dstZookeepers []string) (sarama.SyncProducer, error) {
 	config := consumergroup.NewConfig()
 
 	config.Config.Producer.Retry.Max = 1
@@ -67,7 +66,7 @@ func GetKafkaProducer(custConfig *Config) (sarama.SyncProducer, error) {
 
 	log.Printf("GetKafkaProducer - client id %v\n", config.Config.ClientID)
 
-	zookeepers := strings.Split(custConfig.DestinationZookeepers, ",")
+	zookeepers := dstZookeepers
 	kz, err := kazoo.NewKazoo(zookeepers, config.Zookeeper)
 	if err != nil {
 		log.Printf("GetKafkaProducer - Unable to create zookeeper object: %v\n", err)
@@ -88,15 +87,42 @@ func GetKafkaProducer(custConfig *Config) (sarama.SyncProducer, error) {
 func PullFromTopic(consumer *consumergroup.ConsumerGroup, producer chan<- sarama.ProducerMessage, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	for consumerMsg := range consumer.Messages() {
+	eventCount := 0
+	offsets := make(map[string]map[int32]int64)
+
+	for message := range consumer.Messages() {
+		if offsets[message.Topic] == nil {
+			offsets[message.Topic] = make(map[int32]int64)
+		}
+
+		eventCount++
+		if offsets[message.Topic][message.Partition] != 0 && offsets[message.Topic][message.Partition] != message.Offset-1 {
+			log.Printf("PullFromTopic - Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n", message.Topic, message.Partition, offsets[message.Topic][message.Partition]+1, message.Offset, message.Offset-offsets[message.Topic][message.Partition]+1)
+		}
+
 		producerMsg := sarama.ProducerMessage{
-			Topic: consumerMsg.Topic,
-			Key:   sarama.StringEncoder(consumerMsg.Key),
-			Value: sarama.StringEncoder(consumerMsg.Value),
+			Topic: message.Topic,
+			Key:   sarama.StringEncoder(message.Key),
+			Value: sarama.StringEncoder(message.Value),
 		}
 		producer <- producerMsg
-		consumer.CommitUpto(consumerMsg)
+
+		log.Printf("PullFromTopic - got offset %v on partition %v", message.Offset, message.Partition)
+
+		offsets[message.Topic][message.Partition] = message.Offset
+		consumer.CommitUpto(message)
 	}
+
+	// for consumerMsg := range consumer.Messages() {
+	// 	log.Println("got message")
+	// 	producerMsg := sarama.ProducerMessage{
+	// 		Topic: consumerMsg.Topic,
+	// 		Key:   sarama.StringEncoder(consumerMsg.Key),
+	// 		Value: sarama.StringEncoder(consumerMsg.Value),
+	// 	}
+	// 	producer <- producerMsg
+	// 	consumer.CommitUpto(consumerMsg)
+	// }
 	// 	// for {
 	// 	// 	if len(signals) > 0 {
 	// 	// 		log.Println("Consumer - Interrupt is detected - exiting")
@@ -137,17 +163,37 @@ func PushToTopic(producer sarama.SyncProducer, consumer <-chan sarama.ProducerMe
 		case consumerMsg := <-consumer:
 			_, _, err := producer.SendMessage(&consumerMsg)
 			if err != nil {
-				log.Printf("FAILED to send message: %s\n", err)
+				log.Printf("PushToTopic - FAILED to send message: %s\n", err)
 			}
 		}
 	}
 }
 
 // MonitorChan monitors the transfer channel
-func MonitorChan(transferChan chan sarama.ProducerMessage, wg *sync.WaitGroup) {
+func MonitorChan(transferChan chan sarama.ProducerMessage, brokers []string, topic string, wg *sync.WaitGroup) {
 	defer wg.Done()
+	client, err := sarama.NewClient(brokers, nil) // I am not giving any configuration
+	if err != nil {
+		log.Printf("MonitorChan - %v", err)
+		return
+	}
+
 	for {
-		log.Println("Transfer channel length: ", len(transferChan))
+		partitions, err := client.Partitions(topic)
+		if err != nil {
+			log.Printf("MonitorChan - %v", err)
+		}
+
+		log.Println("==============================")
+		log.Println("=         Monitoring         =")
+		log.Println("==============================")
+		for _, p := range partitions {
+			lastoffset, err := client.GetOffset(topic, p, sarama.OffsetNewest)
+			if err != nil {
+				log.Printf("MonitorChan - %v", err)
+			}
+			log.Printf("Partition %v Last Commited Offset %v", p, lastoffset)
+		}
 		time.Sleep(10 * time.Second)
 	}
 }

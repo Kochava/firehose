@@ -1,0 +1,30 @@
+version: '2'
+services:
+  zookeeper_src:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+  kafka_src:
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: 10.0.1.132
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper_src:2181
+      KAFKA_CREATE_TOPICS: "kbar:24:1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  zookeeper_dst:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2182:2181"
+  kafka_dst:
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: 10.0.1.132
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper_dst:2181
+      KAFKA_CREATE_TOPICS: "kbar:24:1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

@@ -1,2 +1,3 @@
 *.log
 /firehose
+/cover.out

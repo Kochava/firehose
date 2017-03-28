@@ -55,6 +55,6 @@ run unit-tests:
         - cover.out
         - cover.html
   script:
-    - docker-compose run golang-runner go test -coverprofile=cover.out -v .
+    - docker-compose run golang-runner go test -coverprofile=cover.out -v ./cmd/internal/kafka
     - docker-compose run golang-runner go tool cover -html cover.out -o cover.html
     - docker-compose down

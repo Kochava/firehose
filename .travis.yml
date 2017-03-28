@@ -7,6 +7,6 @@ before_install:
   - go get -v github.com/golang/lint/golint
 script:
   - ./ci-lint.sh
-  - go test -v -covermode=count -coverprofile=coverage.out ./cmd/firehose
+  - go test -v -covermode=count -coverprofile=coverage.out ./cmd/internal/kafka
 after_success:
   - $GOPATH/bin/goveralls -coverprofile=coverage.out -service=travis-ci

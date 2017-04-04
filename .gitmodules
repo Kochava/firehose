@@ -40,3 +40,6 @@
 [submodule "vendor/github.com/samuel/go-zookeeper"]
 	path = vendor/github.com/samuel/go-zookeeper
 	url = https://github.com/samuel/go-zookeeper
+[submodule "vendor/github.com/influxdata/influxdb"]
+	path = vendor/github.com/influxdata/influxdb
+	url = https://github.com/influxdata/influxdb

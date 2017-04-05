@@ -1,0 +1,7 @@
+steps:
+- name: 'gcr.io/cloud-builders/go'
+  args: ['install', './cmd/firehose']
+  env: ['PROJECT_ROOT=github.com/Kochava/firehose']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '--tag=gcr.io/${PROJECT_ID}/firehose:${BUILD_VERSION}', '.']
+images: ['gcr.io/${PROJECT_ID}/firehose:${BUILD_VERSION}']

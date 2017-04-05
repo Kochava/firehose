@@ -54,7 +54,7 @@ func startFirehose(c *cli.Context, conf *Config) error {
 
 	for i := 0; i < conf.ConsumerConcurrency; i++ {
 		var err error
-		kafkaClient, err := kafka.InitKafka(conf.Topic, conf.SourceZookeepers, conf.BufferSize, conf.MaxErrors, influxAccessor, shutdown, &wg)
+		kafkaClient, err := kafka.InitKafka(conf.Topic, conf.SourceZookeepers, conf.BufferSize, conf.MaxErrors, conf.MaxRetry, influxAccessor, shutdown, &wg)
 		if err != nil {
 			log.Println("startFirehose - Unable to create the kafka consumer client")
 			return err
@@ -81,7 +81,7 @@ func startFirehose(c *cli.Context, conf *Config) error {
 
 	for i := 0; i < conf.ProducerConcurrency; i++ {
 		var err error
-		kafkaClient, err := kafka.InitKafka(conf.Topic, conf.DestinationZookeepers, conf.BufferSize, conf.MaxErrors, influxAccessor, shutdown, &wg)
+		kafkaClient, err := kafka.InitKafka(conf.Topic, conf.DestinationZookeepers, conf.BufferSize, conf.MaxErrors, conf.MaxRetry, influxAccessor, shutdown, &wg)
 		if err != nil {
 			log.Println("startFirehose - Unable to create the kafka producer client")
 			return err

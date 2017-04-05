@@ -61,7 +61,7 @@ type Kafka struct {
 }
 
 // InitKafka initializes the Kafka object creating some helper clients
-func InitKafka(topic string, zookeepers []string, consumerBuffer, maxErrors int, influxAccessor influxlogger.InfluxD, signalChan chan struct{}, wg *sync.WaitGroup) (*Kafka, error) {
+func InitKafka(topic string, zookeepers []string, consumerBuffer, maxErrors, maxRetry int, influxAccessor influxlogger.InfluxD, signalChan chan struct{}, wg *sync.WaitGroup) (*Kafka, error) {
 	var err error
 	kafka := &Kafka{
 		Topic:             topic,
@@ -75,7 +75,7 @@ func InitKafka(topic string, zookeepers []string, consumerBuffer, maxErrors int,
 
 	kafka.kafkaConfig = consumergroup.NewConfig()
 
-	kafka.kafkaConfig.Config.Producer.Retry.Max = 5
+	kafka.kafkaConfig.Config.Producer.Retry.Max = maxRetry
 	kafka.kafkaConfig.Config.Producer.RequiredAcks = sarama.WaitForLocal
 	kafka.kafkaConfig.Config.Producer.Compression = sarama.CompressionGZIP
 	kafka.kafkaConfig.Config.Producer.Flush.Messages = 500

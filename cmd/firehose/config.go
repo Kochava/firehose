@@ -1,4 +1,4 @@
-// Copyright 2016 Kochava
+// Copyright 2017 Kochava
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,12 +16,24 @@ package main
 
 // Config Contains all the values needed for firehose
 type Config struct {
-	SourceZookeepers      []string
-	DestinationZookeepers []string
-	SourceKafkaBroker     string
-	Topic                 string
-	LogFile               string
-	ConsumerConcurrency   int
-	ProducerConcurrency   int
-	STDOutLogging         bool
+	// Kafka stuff
+	SourceZookeepers      []string // Zookeepers for the source broker
+	DestinationZookeepers []string // Zookeepers for the destination broker
+	Topic                 string   // the topic to transfer
+	ConsumerConcurrency   int      // number of consumer threads
+	ProducerConcurrency   int      // number of producer threads
+	BufferSize            int      // the number of messages to hold in memory at once
+	MaxErrors             int      // max number of errors to allow the producer
+	MaxRetry              int      // the maximum number of times to retry sending a message to the dst cluster
+	ResetOffset           bool     // reset the consumer group offset
+
+	// Influx stuff
+	InfluxAddr string
+	InfluxDB   string
+	InfluxUser string
+	InfluxPass string
+
+	LogFile       string
+	STDOutLogging bool
+	Version       string
 }

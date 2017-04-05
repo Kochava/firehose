@@ -32,8 +32,8 @@ type InfluxD interface {
 	NewInfluxDPoint(name string, tags map[string]string, fields map[string]interface{}, t ...time.Time) (*client.Point, error)
 	PushPoint(pt *client.Point)
 	//Common point methods
-	CreateKafkaPoint(topic string, duration float64)
-	CreateRPSPoint(topic string, rps int)
+	CreateKafkaOffsetPoint(topic string, partition int32, currentOffset, newestOffset int64)
+	CreateRPSPoint(topic, clientType string, rps int64)
 	//add more here
 }
 
@@ -135,12 +135,14 @@ func (inf *InfluxDImpl) PushPoint(pt *client.Point) {
 	}
 }
 
-//CreateKafkaPoint - creates a kafka_stats point metric
-func (inf *InfluxDImpl) CreateKafkaPoint(topic string, duration float64) {
+//CreateKafkaOffsetPoint - creates a kafka_stats point metric
+func (inf *InfluxDImpl) CreateKafkaOffsetPoint(topic string, partition int32, currentOffset, newestOffset int64) {
 	tags := map[string]string{"host": inf.getHostName()}
 	fields := map[string]interface{}{}
 	tags["topic"] = topic
-	fields["duration"] = duration
+	fields["partition"] = partition
+	fields["currentOffset"] = currentOffset
+	fields["newestOffset"] = newestOffset
 	pt, err := inf.NewInfluxDPoint("kafka_stats", tags, fields, time.Now())
 	if err != nil {
 		log.Println("InfluxD : ", err)
@@ -149,12 +151,13 @@ func (inf *InfluxDImpl) CreateKafkaPoint(topic string, duration float64) {
 }
 
 //CreateRPSPoint - creates a kafka_stats point metric
-func (inf *InfluxDImpl) CreateRPSPoint(topic string, rps int) {
+func (inf *InfluxDImpl) CreateRPSPoint(topic, clientType string, rps int64) {
 	tags := map[string]string{"host": inf.getHostName()}
 	fields := map[string]interface{}{}
 	tags["topic"] = topic
+	tags["clientType"] = clientType
 	fields["rps"] = rps
-	pt, err := inf.NewInfluxDPoint("kafka_stats", tags, fields, time.Now())
+	pt, err := inf.NewInfluxDPoint("rps_stats", tags, fields, time.Now())
 	if err != nil {
 		log.Println("InfluxD : ", err)
 	}

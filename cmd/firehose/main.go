@@ -1,4 +1,4 @@
-// Copyright 2016 Kochava
+// Copyright 2017 Kochava
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,12 +54,14 @@ func main() {
 	app.Usage = "An agent which consumes a topic from one set of brokers and publishes to another set of brokers"
 	app.Flags = AppConfigFlags //defined in flags.go
 	//Major, minor, patch version
-	app.Version = "0.2.0"
+	app.Version = "0.3.0"
 	app.Action = func(c *cli.Context) error {
 		initLogging(c, &Conf)
 
 		Conf.SourceZookeepers = c.StringSlice("src-zookeepers")
 		Conf.DestinationZookeepers = c.StringSlice("dst-zookeepers")
+
+		log.Printf("Config %v", Conf)
 
 		if err := startFirehose(c, &Conf); err != nil {
 			log.Fatal(err)

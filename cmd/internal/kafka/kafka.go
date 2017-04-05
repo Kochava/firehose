@@ -85,7 +85,7 @@ func InitKafka(topic string, zookeepers []string, consumerBuffer, maxErrors int,
 	kafka.kafkaConfig.Config.Producer.Return.Errors = true
 	kafka.kafkaConfig.Config.ClientID = "firehose_realtime"
 
-	log.Printf("GetKafkaProducer - client id %v\n", kafka.kafkaConfig.Config.ClientID)
+	log.Printf("InitKafka - client id %v\n", kafka.kafkaConfig.Config.ClientID)
 
 	kafka.kzClient, err = kazoo.NewKazoo(zookeepers, kafka.kafkaConfig.Zookeeper)
 	if err != nil {

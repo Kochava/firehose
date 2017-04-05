@@ -185,16 +185,18 @@ func (k *Kafka) Pull() {
 			log.Println("Pull - shutting down")
 			return
 		case msg := <-k.Consumer.Messages():
-			producerMsg := &sarama.ProducerMessage{
-				Topic: msg.Topic,
-				Key:   sarama.StringEncoder(msg.Key),
-				Value: sarama.StringEncoder(msg.Value),
+			if msg != nil {
+				producerMsg := &sarama.ProducerMessage{
+					Topic: msg.Topic,
+					Key:   sarama.StringEncoder(msg.Key),
+					Value: sarama.StringEncoder(msg.Value),
+				}
+				k.TransferChan <- producerMsg
+
+				atomic.AddUint64(&k.kafkaConsumerTransactions, 1)
+
+				k.Consumer.CommitUpto(msg)
 			}
-			k.TransferChan <- producerMsg
-
-			atomic.AddUint64(&k.kafkaConsumerTransactions, 1)
-
-			k.Consumer.CommitUpto(msg)
 		}
 	}
 

@@ -38,6 +38,7 @@
   "hideControls": false,
   "id": null,
   "links": [],
+  "refresh": "1m",
   "rows": [
     {
       "collapse": false,
@@ -343,7 +344,7 @@
               ],
               "measurement": "kafka_stats",
               "policy": "default",
-              "query": "SELECT mean(\"newestOffset\") - mean(\"currentOffset\") FROM \"kafka_stats\" WHERE $timeFilter GROUP BY time($interval), \"topic\" fill(0)",
+              "query": "SELECT mean(\"newestOffset\") - mean(\"currentOffset\") FROM \"kafka_stats\" WHERE $timeFilter GROUP BY time($interval), \"topic\" fill(linear)",
               "rawQuery": true,
               "refId": "A",
               "resultFormat": "time_series",
@@ -459,7 +460,7 @@
                 },
                 {
                   "params": [
-                    "0"
+                    "none"
                   ],
                   "type": "fill"
                 }
@@ -567,7 +568,7 @@
                 },
                 {
                   "params": [
-                    "0"
+                    "none"
                   ],
                   "type": "fill"
                 }
@@ -767,5 +768,5 @@
   },
   "timezone": "browser",
   "title": "Firehose",
-  "version": 9
+  "version": 14
 }

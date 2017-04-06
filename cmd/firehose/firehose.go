@@ -35,6 +35,8 @@ func startFirehose(c *cli.Context, conf *Config) error {
 	shutdown := make(chan struct{})                        // used to broadcast the intent to shutdown processing
 	transferChan := kafka.GetTransferChan(conf.BufferSize) // used to pass messages between the consumer threads and the producer threads
 	var wg sync.WaitGroup
+	consumerTransactions := make([]*uint64, 0)
+	producerTransactions := make([]*uint64, 0)
 
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM) // notify on sig int and sig term
 
@@ -57,15 +59,19 @@ func startFirehose(c *cli.Context, conf *Config) error {
 		var err error
 
 		config := kafka.Config{
-			Topic:             conf.Topic,
-			Zookeepers:        conf.SourceZookeepers,
-			ConsumerGroupName: fmt.Sprintf("%s_firehose", conf.Topic),
-			ConsumerBuffer:    conf.BufferSize,
-			MaxErrors:         conf.MaxErrors,
-			MaxRetry:          conf.MaxRetry,
-			BatchSize:         conf.BatchSize,
-			FlushInterval:     conf.FlushInterval,
+			Topic:                conf.Topic,
+			Zookeepers:           conf.SourceZookeepers,
+			ConsumerGroupName:    fmt.Sprintf("%s_firehose", conf.Topic),
+			ConsumerBuffer:       conf.BufferSize,
+			MaxErrors:            conf.MaxErrors,
+			MaxRetry:             conf.MaxRetry,
+			BatchSize:            conf.BatchSize,
+			FlushInterval:        conf.FlushInterval,
+			ConsumerTransactions: new(uint64),
+			ProducerTransactions: new(uint64),
 		}
+
+		consumerTransactions = append(consumerTransactions, config.ConsumerTransactions)
 
 		kafkaClient, err := kafka.InitKafka(config, influxAccessor, shutdown, &wg)
 		if err != nil {
@@ -92,19 +98,26 @@ func startFirehose(c *cli.Context, conf *Config) error {
 		go kafkaClient.Monitor()
 	}
 
+	log.Println("Starting RPS logging thread")
+	go kafka.LogRPS("consumer", conf.Topic, influxAccessor, consumerTransactions)
+
 	for i := 0; i < conf.ProducerConcurrency; i++ {
 		var err error
 
 		config := kafka.Config{
-			Topic:             conf.Topic,
-			Zookeepers:        conf.DestinationZookeepers,
-			ConsumerGroupName: fmt.Sprintf("%s_firehose", conf.Topic),
-			ConsumerBuffer:    conf.BufferSize,
-			MaxErrors:         conf.MaxErrors,
-			MaxRetry:          conf.MaxRetry,
-			BatchSize:         conf.BatchSize,
-			FlushInterval:     conf.FlushInterval,
+			Topic:                conf.Topic,
+			Zookeepers:           conf.DestinationZookeepers,
+			ConsumerGroupName:    fmt.Sprintf("%s_firehose", conf.Topic),
+			ConsumerBuffer:       conf.BufferSize,
+			MaxErrors:            conf.MaxErrors,
+			MaxRetry:             conf.MaxRetry,
+			BatchSize:            conf.BatchSize,
+			FlushInterval:        conf.FlushInterval,
+			ConsumerTransactions: new(uint64),
+			ProducerTransactions: new(uint64),
 		}
+
+		producerTransactions = append(producerTransactions, config.ProducerTransactions)
 
 		kafkaClient, err := kafka.InitKafka(config, influxAccessor, shutdown, &wg)
 		if err != nil {
@@ -134,6 +147,17 @@ func startFirehose(c *cli.Context, conf *Config) error {
 		log.Println("Starting producer monitor thread")
 		go kafkaClient.Monitor()
 	}
+
+	log.Println("Starting RPS logging thread")
+	go kafka.LogRPS("producer", conf.Topic, influxAccessor, producerTransactions)
+
+	// log the internal channel every 30s
+	go func() {
+		for {
+			log.Printf("Firehose - Transfer Channel length %v", len(transferChan))
+			time.Sleep(time.Second * 30)
+		}
+	}()
 
 	defer func() {
 		log.Println("Waiting for all threads to exit.")

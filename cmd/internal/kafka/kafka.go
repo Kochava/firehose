@@ -43,12 +43,10 @@ type Kafka struct {
 	errors int32
 
 	// internal kafka stuff
-	kzClient                  *kazoo.Kazoo
-	kzConsumerGroup           *kazoo.Consumergroup
-	kafkaClient               sarama.Client
-	kafkaConfig               *consumergroup.Config
-	kafkaConsumerTransactions uint64
-	kafkaProducerTransactions uint64
+	kzClient        *kazoo.Kazoo
+	kzConsumerGroup *kazoo.Consumergroup
+	kafkaClient     sarama.Client
+	kafkaConfig     *consumergroup.Config
 
 	// other stuff
 	WaitGroup *sync.WaitGroup
@@ -58,14 +56,16 @@ type Kafka struct {
 
 // Config is a convenient wrapper for all the config values needed for InitKafka
 type Config struct {
-	Topic             string
-	Zookeepers        []string
-	ConsumerGroupName string
-	ConsumerBuffer    int
-	MaxErrors         int
-	MaxRetry          int
-	BatchSize         int
-	FlushInterval     int
+	Topic                string
+	Zookeepers           []string
+	ConsumerGroupName    string
+	ConsumerBuffer       int
+	MaxErrors            int
+	MaxRetry             int
+	BatchSize            int
+	FlushInterval        int
+	ConsumerTransactions *uint64
+	ProducerTransactions *uint64
 }
 
 // InitKafka initializes the Kafka object creating some helper clients
@@ -113,8 +113,8 @@ func InitKafka(conf Config, influxAccessor influxlogger.InfluxD, signalChan chan
 
 	kafka.kzConsumerGroup = kafka.kzClient.Consumergroup(conf.ConsumerGroupName)
 
-	atomic.StoreUint64(&kafka.kafkaConsumerTransactions, 0)
-	atomic.StoreUint64(&kafka.kafkaProducerTransactions, 0)
+	atomic.StoreUint64(kafka.Conf.ConsumerTransactions, 0)
+	atomic.StoreUint64(kafka.Conf.ProducerTransactions, 0)
 
 	kafka.influx = influxAccessor
 
@@ -197,7 +197,7 @@ func (k *Kafka) Pull() {
 				}
 				k.TransferChan <- producerMsg
 
-				atomic.AddUint64(&k.kafkaConsumerTransactions, 1)
+				atomic.AddUint64(k.Conf.ConsumerTransactions, 1)
 
 				k.Consumer.CommitUpto(msg)
 			}
@@ -235,7 +235,7 @@ func (k *Kafka) Push() {
 // RPSTicker simply pulls from Successes and ticks the rps counter
 func (k *Kafka) RPSTicker() {
 	for range k.Producer.Successes() {
-		atomic.AddUint64(&k.kafkaProducerTransactions, 1)
+		atomic.AddUint64(k.Conf.ProducerTransactions, 1)
 	}
 }
 
@@ -280,26 +280,11 @@ func (k *Kafka) Monitor() {
 					if err != nil {
 						log.Printf("MonitorChan - %v", err)
 					}
-					// log.Printf("MonitorChan - Consumer - Partition %v Kafka Offset %v Zookeeper Offset %v", p, lastoffset, zkOffset)
-
 					partitionDiff += (offset - (zkOffset))
 					k.influx.CreateKafkaOffsetPoint(k.Conf.Topic, p, zkOffset, offset)
 				}
-
-				// log.Printf("MonitorChan - Consumer - Avg partition diff %v", (partitionDiff / int64(len(partitions))))
-				log.Printf("MonitorChan - Consumer - RPS %v", atomic.LoadUint64(&k.kafkaConsumerTransactions))
 				partitionDiff = 0
-				k.influx.CreateRPSPoint(k.Conf.Topic, "consumer", int64(atomic.LoadUint64(&k.kafkaConsumerTransactions)))
 			}
-			if k.Producer != nil {
-				log.Printf("MonitorChan - Producer RPS %v", atomic.LoadUint64(&k.kafkaProducerTransactions))
-				k.influx.CreateRPSPoint(k.Conf.Topic, "producer", int64(atomic.LoadUint64(&k.kafkaProducerTransactions)))
-			}
-
-			log.Printf("MonitorChan - Transfer Channel length %v", len(k.TransferChan))
-
-			atomic.StoreUint64(&k.kafkaConsumerTransactions, 0)
-			atomic.StoreUint64(&k.kafkaProducerTransactions, 0)
 		}
 	}
 }
@@ -319,4 +304,18 @@ func (k *Kafka) getNewestOffsets() (map[int32]int64, error) {
 		offsets[p] = lastoffset
 	}
 	return offsets, nil
+}
+
+// LogRPS aggregates the transaction count for this process
+func LogRPS(tag, topic string, influxAccessor influxlogger.InfluxD, rps []*uint64) {
+	for {
+		time.Sleep(time.Second)
+		var tr uint64
+		for _, r := range rps {
+			tr += atomic.LoadUint64(r)
+			atomic.StoreUint64(r, 0)
+		}
+		log.Printf("LogRPS - %s - RPS %v", tag, int64(tr))
+		influxAccessor.CreateRPSPoint(topic, tag, int64(tr))
+	}
 }

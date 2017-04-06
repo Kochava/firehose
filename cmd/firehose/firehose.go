@@ -61,7 +61,7 @@ func startFirehose(c *cli.Context, conf *Config) error {
 		config := kafka.Config{
 			Topic:                conf.Topic,
 			Zookeepers:           conf.SourceZookeepers,
-			ConsumerGroupName:    fmt.Sprintf("%s_firehose", conf.Topic),
+			ConsumerGroupName:    fmt.Sprintf("%s_%s", conf.Topic, conf.CGNameSuffix),
 			ConsumerBuffer:       conf.BufferSize,
 			MaxErrors:            conf.MaxErrors,
 			MaxRetry:             conf.MaxRetry,
@@ -107,7 +107,7 @@ func startFirehose(c *cli.Context, conf *Config) error {
 		config := kafka.Config{
 			Topic:                conf.Topic,
 			Zookeepers:           conf.DestinationZookeepers,
-			ConsumerGroupName:    fmt.Sprintf("%s_firehose", conf.Topic),
+			ConsumerGroupName:    fmt.Sprintf("%s_%s", conf.Topic, conf.CGNameSuffix),
 			ConsumerBuffer:       conf.BufferSize,
 			MaxErrors:            conf.MaxErrors,
 			MaxRetry:             conf.MaxRetry,

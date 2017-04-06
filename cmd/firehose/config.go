@@ -20,6 +20,7 @@ type Config struct {
 	SourceZookeepers      []string // Zookeepers for the source broker
 	DestinationZookeepers []string // Zookeepers for the destination broker
 	Topic                 string   // the topic to transfer
+	CGNameSuffix          string   // the suffix to use to build the consumer group name
 	ConsumerConcurrency   int      // number of consumer threads
 	ProducerConcurrency   int      // number of producer threads
 	BufferSize            int      // the number of messages to hold in memory at once

@@ -37,6 +37,13 @@ var AppConfigFlags = []cli.Flag{
 		EnvVar:      "FIREHOSE_TOPIC",
 		Destination: &Conf.Topic,
 	},
+	cli.StringFlag{
+		Name:        "cg-name-suffix",
+		Value:       "firehose", //Default value
+		Usage:       "Suffix to use for the consumer group name in the format <topic>_<suffix>",
+		EnvVar:      "FIREHOSE_CG_NAME_SUFFIX",
+		Destination: &Conf.CGNameSuffix,
+	},
 	cli.IntFlag{
 		Name:        "buffer-size",
 		Value:       10000, //Default value

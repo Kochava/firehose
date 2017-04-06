@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -54,7 +55,19 @@ func startFirehose(c *cli.Context, conf *Config) error {
 
 	for i := 0; i < conf.ConsumerConcurrency; i++ {
 		var err error
-		kafkaClient, err := kafka.InitKafka(conf.Topic, conf.SourceZookeepers, conf.BufferSize, conf.MaxErrors, conf.MaxRetry, influxAccessor, shutdown, &wg)
+
+		config := kafka.Config{
+			Topic:             conf.Topic,
+			Zookeepers:        conf.SourceZookeepers,
+			ConsumerGroupName: fmt.Sprintf("%s_firehose", conf.Topic),
+			ConsumerBuffer:    conf.BufferSize,
+			MaxErrors:         conf.MaxErrors,
+			MaxRetry:          conf.MaxRetry,
+			BatchSize:         conf.BatchSize,
+			FlushInterval:     conf.FlushInterval,
+		}
+
+		kafkaClient, err := kafka.InitKafka(config, influxAccessor, shutdown, &wg)
 		if err != nil {
 			log.Println("startFirehose - Unable to create the kafka consumer client")
 			return err
@@ -81,7 +94,19 @@ func startFirehose(c *cli.Context, conf *Config) error {
 
 	for i := 0; i < conf.ProducerConcurrency; i++ {
 		var err error
-		kafkaClient, err := kafka.InitKafka(conf.Topic, conf.DestinationZookeepers, conf.BufferSize, conf.MaxErrors, conf.MaxRetry, influxAccessor, shutdown, &wg)
+
+		config := kafka.Config{
+			Topic:             conf.Topic,
+			Zookeepers:        conf.DestinationZookeepers,
+			ConsumerGroupName: fmt.Sprintf("%s_firehose", conf.Topic),
+			ConsumerBuffer:    conf.BufferSize,
+			MaxErrors:         conf.MaxErrors,
+			MaxRetry:          conf.MaxRetry,
+			BatchSize:         conf.BatchSize,
+			FlushInterval:     conf.FlushInterval,
+		}
+
+		kafkaClient, err := kafka.InitKafka(config, influxAccessor, shutdown, &wg)
 		if err != nil {
 			log.Println("startFirehose - Unable to create the kafka producer client")
 			return err

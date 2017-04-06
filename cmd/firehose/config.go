@@ -25,6 +25,8 @@ type Config struct {
 	BufferSize            int      // the number of messages to hold in memory at once
 	MaxErrors             int      // max number of errors to allow the producer
 	MaxRetry              int      // the maximum number of times to retry sending a message to the dst cluster
+	BatchSize             int      // the batch size to use for the producer
+	FlushInterval         int      // the interval (in ms) to flush messages which haven't been batched
 	ResetOffset           bool     // reset the consumer group offset
 
 	// Influx stuff

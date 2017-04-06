@@ -58,6 +58,20 @@ var AppConfigFlags = []cli.Flag{
 		EnvVar:      "FIREHOSE_MAX_RETRY",
 		Destination: &Conf.MaxRetry,
 	},
+	cli.IntFlag{
+		Name:        "batch-size",
+		Value:       500, //Default value
+		Usage:       "The number of messages to batch together when sending to the destination cluster",
+		EnvVar:      "FIREHOSE_BATCH_SIZE",
+		Destination: &Conf.BatchSize,
+	},
+	cli.IntFlag{
+		Name:        "flush-interval",
+		Value:       10000, //Default value
+		Usage:       "The interval (in ms) to flush messages that haven't been sent in a batch yet",
+		EnvVar:      "FIREHOSE_FLUSH_INTERVAL",
+		Destination: &Conf.FlushInterval,
+	},
 	cli.BoolFlag{
 		Name:        "reset-offset",
 		Usage:       "Resets the offset in the consumer group to real-time before starting",

@@ -15,7 +15,6 @@
 package kafka
 
 import (
-	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -30,10 +29,9 @@ import (
 // Kafka object that provides nice helper functions
 type Kafka struct {
 	// Config
-	Topic             string
-	Zookeepers        []string
-	Brokers           []string
-	ConsumerGroupName string
+	Conf Config
+
+	Brokers []string
 
 	// Kafka stuff
 	Producer sarama.AsyncProducer
@@ -42,8 +40,7 @@ type Kafka struct {
 	ProducerChan chan *sarama.ProducerMessage
 	TransferChan chan *sarama.ProducerMessage
 
-	errors    int32
-	maxErrors int
+	errors int32
 
 	// internal kafka stuff
 	kzClient                  *kazoo.Kazoo
@@ -52,7 +49,6 @@ type Kafka struct {
 	kafkaConfig               *consumergroup.Config
 	kafkaConsumerTransactions uint64
 	kafkaProducerTransactions uint64
-	consumerBuffer            int
 
 	// other stuff
 	WaitGroup *sync.WaitGroup
@@ -60,26 +56,34 @@ type Kafka struct {
 	influx    influxlogger.InfluxD
 }
 
+// Config is a convenient wrapper for all the config values needed for InitKafka
+type Config struct {
+	Topic             string
+	Zookeepers        []string
+	ConsumerGroupName string
+	ConsumerBuffer    int
+	MaxErrors         int
+	MaxRetry          int
+	BatchSize         int
+	FlushInterval     int
+}
+
 // InitKafka initializes the Kafka object creating some helper clients
-func InitKafka(topic string, zookeepers []string, consumerBuffer, maxErrors, maxRetry int, influxAccessor influxlogger.InfluxD, signalChan chan struct{}, wg *sync.WaitGroup) (*Kafka, error) {
+func InitKafka(conf Config, influxAccessor influxlogger.InfluxD, signalChan chan struct{}, wg *sync.WaitGroup) (*Kafka, error) {
 	var err error
 	kafka := &Kafka{
-		Topic:             topic,
-		Zookeepers:        zookeepers,
-		ConsumerGroupName: fmt.Sprintf("%s_firehose", topic),
-		consumerBuffer:    consumerBuffer,
-		maxErrors:         maxErrors,
-		Shutdown:          signalChan,
-		WaitGroup:         wg,
+		Conf:      conf,
+		Shutdown:  signalChan,
+		WaitGroup: wg,
 	}
 
 	kafka.kafkaConfig = consumergroup.NewConfig()
 
-	kafka.kafkaConfig.Config.Producer.Retry.Max = maxRetry
+	kafka.kafkaConfig.Config.Producer.Retry.Max = conf.MaxRetry
 	kafka.kafkaConfig.Config.Producer.RequiredAcks = sarama.WaitForLocal
 	kafka.kafkaConfig.Config.Producer.Compression = sarama.CompressionGZIP
-	kafka.kafkaConfig.Config.Producer.Flush.Messages = 500
-	kafka.kafkaConfig.Config.Producer.Flush.Frequency = time.Second * 10
+	kafka.kafkaConfig.Config.Producer.Flush.Messages = conf.BatchSize
+	kafka.kafkaConfig.Config.Producer.Flush.Frequency = time.Millisecond * time.Duration(conf.FlushInterval)
 	kafka.kafkaConfig.Producer.Partitioner = sarama.NewRoundRobinPartitioner
 	kafka.kafkaConfig.Config.Producer.Return.Successes = true
 	kafka.kafkaConfig.Config.Producer.Return.Errors = true
@@ -87,7 +91,7 @@ func InitKafka(topic string, zookeepers []string, consumerBuffer, maxErrors, max
 
 	log.Printf("InitKafka - client id %v\n", kafka.kafkaConfig.Config.ClientID)
 
-	kafka.kzClient, err = kazoo.NewKazoo(zookeepers, kafka.kafkaConfig.Zookeeper)
+	kafka.kzClient, err = kazoo.NewKazoo(conf.Zookeepers, kafka.kafkaConfig.Zookeeper)
 	if err != nil {
 		log.Printf("InitKafka - Unable to initialize kazoo client: %v", err)
 		return nil, err
@@ -107,7 +111,7 @@ func InitKafka(topic string, zookeepers []string, consumerBuffer, maxErrors, max
 		return nil, err
 	}
 
-	kafka.kzConsumerGroup = kafka.kzClient.Consumergroup(kafka.ConsumerGroupName)
+	kafka.kzConsumerGroup = kafka.kzClient.Consumergroup(conf.ConsumerGroupName)
 
 	atomic.StoreUint64(&kafka.kafkaConsumerTransactions, 0)
 	atomic.StoreUint64(&kafka.kafkaProducerTransactions, 0)
@@ -132,9 +136,9 @@ func (k *Kafka) InitConsumer(transferChan chan *sarama.ProducerMessage, reset bo
 
 	groupConfig.Zookeeper.Chroot = ""
 
-	topicSlice := []string{k.Topic}
+	topicSlice := []string{k.Conf.Topic}
 
-	k.Consumer, err = consumergroup.JoinConsumerGroup(k.ConsumerGroupName, topicSlice, k.Zookeepers, groupConfig)
+	k.Consumer, err = consumergroup.JoinConsumerGroup(k.Conf.ConsumerGroupName, topicSlice, k.Conf.Zookeepers, groupConfig)
 	if err != nil {
 		log.Printf("InitConsumer - Failed to join consumer group: %v\n", err)
 		return err
@@ -151,7 +155,7 @@ func (k *Kafka) GetConsumerErrors() {
 	for err := range k.Consumer.Errors() {
 		log.Printf("GetConsumerErrors - %v", err)
 		atomic.AddInt32(&k.errors, 1)
-		if int(k.errors) > k.maxErrors {
+		if int(k.errors) > k.Conf.MaxErrors {
 			close(k.Shutdown)
 			log.Println("GetConsumerErrors - shutting down")
 			return
@@ -217,7 +221,7 @@ func (k *Kafka) Push() {
 		case err := <-k.Producer.Errors():
 			log.Println("Failed to produce message to kafka cluster. ", err)
 			atomic.AddInt32(&k.errors, 1)
-			if int(k.errors) > k.maxErrors {
+			if int(k.errors) > k.Conf.MaxErrors {
 				close(k.Shutdown)
 				log.Println("Push - shutting down")
 				return
@@ -272,24 +276,24 @@ func (k *Kafka) Monitor() {
 				partitions, err := k.getNewestOffsets()
 
 				for p, offset := range partitions {
-					zkOffset, _ := k.kzConsumerGroup.FetchOffset(k.Topic, p)
+					zkOffset, _ := k.kzConsumerGroup.FetchOffset(k.Conf.Topic, p)
 					if err != nil {
 						log.Printf("MonitorChan - %v", err)
 					}
 					// log.Printf("MonitorChan - Consumer - Partition %v Kafka Offset %v Zookeeper Offset %v", p, lastoffset, zkOffset)
 
 					partitionDiff += (offset - (zkOffset))
-					k.influx.CreateKafkaOffsetPoint(k.Topic, p, zkOffset, offset)
+					k.influx.CreateKafkaOffsetPoint(k.Conf.Topic, p, zkOffset, offset)
 				}
 
 				// log.Printf("MonitorChan - Consumer - Avg partition diff %v", (partitionDiff / int64(len(partitions))))
 				log.Printf("MonitorChan - Consumer - RPS %v", atomic.LoadUint64(&k.kafkaConsumerTransactions))
 				partitionDiff = 0
-				k.influx.CreateRPSPoint(k.Topic, "consumer", int64(atomic.LoadUint64(&k.kafkaConsumerTransactions)))
+				k.influx.CreateRPSPoint(k.Conf.Topic, "consumer", int64(atomic.LoadUint64(&k.kafkaConsumerTransactions)))
 			}
 			if k.Producer != nil {
 				log.Printf("MonitorChan - Producer RPS %v", atomic.LoadUint64(&k.kafkaProducerTransactions))
-				k.influx.CreateRPSPoint(k.Topic, "producer", int64(atomic.LoadUint64(&k.kafkaProducerTransactions)))
+				k.influx.CreateRPSPoint(k.Conf.Topic, "producer", int64(atomic.LoadUint64(&k.kafkaProducerTransactions)))
 			}
 
 			log.Printf("MonitorChan - Transfer Channel length %v", len(k.TransferChan))
@@ -304,14 +308,14 @@ func (k *Kafka) getNewestOffsets() (map[int32]int64, error) {
 	offsets := make(map[int32]int64)
 	var err error
 
-	partitions, err := k.kafkaClient.Partitions(k.Topic)
+	partitions, err := k.kafkaClient.Partitions(k.Conf.Topic)
 	if err != nil {
 		log.Printf("getCurrentOffsets - %v", err)
 		return offsets, err
 	}
 
 	for _, p := range partitions {
-		lastoffset, _ := k.kafkaClient.GetOffset(k.Topic, p, sarama.OffsetNewest)
+		lastoffset, _ := k.kafkaClient.GetOffset(k.Conf.Topic, p, sarama.OffsetNewest)
 		offsets[p] = lastoffset
 	}
 	return offsets, nil

@@ -32,7 +32,7 @@ type InfluxD interface {
 	NewInfluxDPoint(name string, tags map[string]string, fields map[string]interface{}, t ...time.Time) (*client.Point, error)
 	PushPoint(pt *client.Point)
 	//Common point methods
-	CreateKafkaOffsetPoint(topic string, partition int32, currentOffset, newestOffset int64)
+	CreateKafkaOffsetPoint(cgName, topic string, partition int32, currentOffset, newestOffset int64)
 	CreateRPSPoint(topic, clientType string, rps int64)
 	//add more here
 }
@@ -136,9 +136,10 @@ func (inf *InfluxDImpl) PushPoint(pt *client.Point) {
 }
 
 //CreateKafkaOffsetPoint - creates a kafka_stats point metric
-func (inf *InfluxDImpl) CreateKafkaOffsetPoint(topic string, partition int32, currentOffset, newestOffset int64) {
+func (inf *InfluxDImpl) CreateKafkaOffsetPoint(cgName, topic string, partition int32, currentOffset, newestOffset int64) {
 	tags := map[string]string{"host": inf.getHostName()}
 	fields := map[string]interface{}{}
+	tags["consumer_group_name"] = cgName
 	tags["topic"] = topic
 	fields["partition"] = partition
 	fields["currentOffset"] = currentOffset

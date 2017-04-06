@@ -281,7 +281,7 @@ func (k *Kafka) Monitor() {
 						log.Printf("MonitorChan - %v", err)
 					}
 					partitionDiff += (offset - (zkOffset))
-					k.influx.CreateKafkaOffsetPoint(k.Conf.Topic, p, zkOffset, offset)
+					k.influx.CreateKafkaOffsetPoint(k.Conf.ConsumerGroupName, k.Conf.Topic, p, zkOffset, offset)
 				}
 				partitionDiff = 0
 			}

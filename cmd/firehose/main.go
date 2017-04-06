@@ -54,7 +54,7 @@ func main() {
 	app.Usage = "An agent which consumes a topic from one set of brokers and publishes to another set of brokers"
 	app.Flags = AppConfigFlags //defined in flags.go
 	//Major, minor, patch version
-	app.Version = "0.3.2"
+	app.Version = "0.3.3"
 	app.Action = func(c *cli.Context) error {
 		initLogging(c, &Conf)
 

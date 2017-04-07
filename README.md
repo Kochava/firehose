@@ -79,7 +79,9 @@ Once up and running you can access Grafana at http://localhost:3000 with the def
 6. Push to the branch (`git push origin my-new-feature`)
 7. Create new Pull Request
 
+### TODO
 
+With the new refactor a lot of work was put into performance, because of that the historical transfer aspect was essentially scrapped in this release. It will be added back in with the next release.
 
 #### Github
 The Github version of this repo is a mirror of Master from our internal repo. This means that feature branches are not available here.

@@ -41,8 +41,8 @@ vendor deps:
     paths: &submodule_paths
       - vendor
   script:
-    - go get github.com/Masterminds/glide
-    - glide --debug install
+    - git submodule init
+    - git submodule update
 run unit-tests:
   stage: test
   tags: *privileged_tags
@@ -55,6 +55,6 @@ run unit-tests:
         - cover.out
         - cover.html
   script:
-    - docker-compose run golang-runner go test -coverprofile=cover.out -v .
+    - docker-compose run golang-runner go test -coverprofile=cover.out -v ./cmd/internal/kafka
     - docker-compose run golang-runner go tool cover -html cover.out -o cover.html
     - docker-compose down

@@ -1,2 +1,5 @@
 *.log
-vendor
+/firehose
+/cover.out
+cloudbuild.yml
+/Docker/service.json

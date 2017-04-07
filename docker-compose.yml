@@ -3,8 +3,8 @@ services:
   golang-runner:
     image: golang:1.7-alpine
     volumes:
-      - .:/usr/src/go/src/git.dev.kochava.com/jbury/firehose
-    working_dir: /usr/src/go/src/git.dev.kochava.com/jbury/firehose
+      - .:/usr/src/go/src/github.com/Kochava/firehose
+    working_dir: /usr/src/go/src/github.com/Kochava/firehose
     command: go --version
     environment:
       - GOPATH=/usr/src/go

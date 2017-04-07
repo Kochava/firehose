@@ -1,0 +1,49 @@
+version: '2'
+services:
+  zookeeper_src:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+  kafka_src:
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: 10.0.1.132
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper_src:2181
+      KAFKA_CREATE_TOPICS: "firehose:24:1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  zookeeper_dst:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2182:2181"
+  kafka_dst:
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: 10.0.1.132
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper_dst:2181
+      KAFKA_CREATE_TOPICS: "firehose:24:1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  influxdb:
+    image: tutum/influxdb
+    ports:
+      - "8083:8083"
+      - "8086:8086"
+    expose:
+      - "8090"
+      - "8099"
+      - "8086"
+    environment:
+      - ADMIN_USER="firehose"
+      - PRE_CREATE_DB="firehose"
+      - INFLUXDB_INIT_PWD="firehose"
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    links:
+      - influxdb

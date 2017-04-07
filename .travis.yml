@@ -5,6 +5,7 @@ go:
 - tip
 before_install:
   - go get -v github.com/golang/lint/golint
+install: false
 script:
   - ./ci-lint.sh
   - go test -v -covermode=count -coverprofile=coverage.out ./cmd/internal/kafka

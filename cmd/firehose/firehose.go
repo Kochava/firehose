@@ -172,8 +172,6 @@ func startFirehose(c *cli.Context, conf *Config) error {
 			close(shutdown) // signal to all threads to shutdown
 			log.Println("startFirehose - received signal, shutting down.")
 			return nil
-		default:
-			time.Sleep(time.Millisecond * 10)
 		}
 	}
 }

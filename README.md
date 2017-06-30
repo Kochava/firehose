@@ -1,7 +1,7 @@
 Firehose [![Build Status](https://travis-ci.org/Kochava/firehose.svg?branch=master)](https://travis-ci.org/Kochava/firehose) [![Coverage Status](https://coveralls.io/repos/github/Kochava/firehose/badge.svg?branch=master)](https://coveralls.io/github/Kochava/firehose?branch=master)
 ======
 
-Firehose is a Kafka transfer agent which can do real-time of a Topic from one set of Brokers to another. This is useful when you want the two clusters to remain independent and not use the built in replication process of Kafka.
+Firehose is a Kafka transfer agent which can do real-time transferring of a Topic from one set of Brokers to another. This is useful when you want the two clusters to remain independent and not use the built in replication process of Kafka. NOTE: This is mostly meant for seeding one cluster with another and not for any process needing data loss guarantees, for that check out [uReplicator](https://github.com/uber/uReplicator)
 
 ### Requirements
 * Docker (for local testing)
@@ -31,7 +31,7 @@ USAGE:
    firehose [global options] command [command options] [arguments...]
 
 VERSION:
-   0.3.3
+   0.3.4
 
 GLOBAL OPTIONS:
    --src-zookeepers value        Comma delimited list of zookeeper nodes to connect to for the source brokers [$FIREHOSE_SRC_ZOOKEEPERS]

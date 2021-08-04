@@ -100,3 +100,17 @@ With the new refactor a lot of work was put into performance, because of that th
 
 #### Github
 The Github version of this repo is a mirror of Master from our internal repo. This means that feature branches are not available here.
+
+
+## Default Branch
+
+As of October 1, 2020, github.com uses the branch name ‘main’ when creating the initial default branch for all new repositories.  In order to minimize any customizations in our github usage and to support consistent naming conventions, we have made the decision to rename the ‘master’ branch to be called ‘main’ in all Kochava’s github repos.
+
+For local copies of the repo, the following steps will update to the new default branch:
+
+```
+git branch -m master main
+git fetch origin
+git branch -u origin/main main
+git remote set-head origin -a
+```
